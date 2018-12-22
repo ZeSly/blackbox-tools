@@ -122,7 +122,7 @@ static void parseFieldNames(const char *line, flightLogFrameDef_t *frameDef)
     bool done = false;
 
     //Make a copy of the line so we can manage its lifetime (and write to it to null terminate the fields)
-    frameDef->namesLine = strdup(line);
+    frameDef->namesLine = _strdup(line);
     frameDef->fieldCount = 0;
 
     start = frameDef->namesLine;
@@ -484,7 +484,7 @@ static void parseHeaderLine(flightLog_t *log, mmapStream_t *stream)
         if (strncmp(fieldValue, "Betaflight", 10) == 0)
             log->sysConfig.firmwareRevison = FIRMWARE_REVISON_BETAFLIGHT;
         else if(strncmp(fieldValue, "INAV", 4) == 0) {
-            uint8_t major=0,minor=0,micro=0;
+            long major=0,minor=0,micro=0;
             char *ptr = fieldValue+5; // "INAV "
             major = strtol(ptr, &ptr, 10);
             if (ptr)

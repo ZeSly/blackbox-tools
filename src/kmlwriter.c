@@ -45,20 +45,17 @@ typedef struct {
     uint8_t placeFlags;
 } extendedData_t;
 
-extendedData_t extended_data[NB_EXTENDED_DATA_MAX];
-int nb_extended_data = 0;
-int change_track_data = -1;
-int nb_change_track = 0;
-
-typedef struct  {
+typedef struct {
     uint64_t max;
     uint64_t min;
-} placeValue_t ;
+} placeValue_t;
 
-placeValue_t placeValue[NB_EXTENDED_DATA_MAX];
-coordList_t *placeCoordMin[NB_EXTENDED_DATA_MAX];
-coordList_t *placeCoordMax[NB_EXTENDED_DATA_MAX];
-uint8_t altitude_place_flags = 0;
+static extendedData_t extended_data[NB_EXTENDED_DATA_MAX];
+static int nb_extended_data = 0;
+static int change_track_data = -1;
+static int nb_change_track = 0;
+
+static uint8_t altitude_place_flags = 0;
 
 static void clearCoordList()
 {
@@ -73,9 +70,11 @@ static void clearCoordList()
     coordList = NULL;
 }
 
-bool kmlSetMinimums(const char *optarg)
+bool kmlSetMinimums(char *optarg)
 {
+    bool found = false;
     char *tok = strtok(optarg, ",");
+
     while (tok != NULL)
     {
         for (int e = 0; e < nb_extended_data; e++)
@@ -83,19 +82,25 @@ bool kmlSetMinimums(const char *optarg)
             if (strcmp(tok, extended_data[e].name) == 0)
             {
                 extended_data[e].placeFlags |= PLACE_MIN;
+                found = true;
             }
             else if (strcmp(tok, "altitude") == 0)
             {
                 altitude_place_flags |= PLACE_MIN;
+                found = true;
             }
         }
         tok = strtok(NULL, ",");
     }
+
+    return found;
 }
 
-bool kmlSetMaximums(const char *optarg)
+bool kmlSetMaximums(char *optarg)
 {
+    bool found = false;
     char *tok = strtok(optarg, ",");
+
     while (tok != NULL)
     {
         for (int e = 0; e < nb_extended_data; e++)
@@ -103,22 +108,26 @@ bool kmlSetMaximums(const char *optarg)
             if (strcmp(tok, extended_data[e].name) == 0)
             {
                 extended_data[e].placeFlags |= PLACE_MAX;
+                found = true;
             }
             else if (strcmp(tok, "altitude") == 0)
             {
                 altitude_place_flags |= PLACE_MAX;
+                found = true;
             }
         }
         tok = strtok(NULL, ",");
     }
+
+    return found;
 }
 
-bool kmlSetInfos(const char *optarg)
+void kmlSetInfos(char *optarg)
 {
     nb_extended_data = 0;
 
     char *tok = strtok(optarg, ",");
-    while (tok != NULL & nb_extended_data < NB_EXTENDED_DATA_MAX)
+    while (tok != NULL && nb_extended_data < NB_EXTENDED_DATA_MAX)
     {
         extended_data[nb_extended_data++].name = tok;
         tok = strtok(NULL, ",");
@@ -131,7 +140,7 @@ kmlWriter_t* kmlWriterCreate(const char *filename, bool trackModes)
 {
     kmlWriter_t *result = malloc(sizeof(*result));
 
-    result->filename = strdup(filename);
+    result->filename = _strdup(filename);
     result->state = KMLWRITER_STATE_EMPTY;
     result->file = NULL;
     result->trackModes = trackModes;
@@ -141,12 +150,6 @@ kmlWriter_t* kmlWriterCreate(const char *filename, bool trackModes)
 
 void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, int64_t *bufferedMainFrame, int64_t *bufferedSlowFrame)
 {
-    for (int i = 0; i < NB_EXTENDED_DATA_MAX ; i++)
-    {
-        placeValue[i].min = UINT64_MAX;
-        placeValue[i].max = 0;
-    }
-
     if (kml->trackModes) {
         extended_data[nb_extended_data++].name = "flightModeFlags";
         change_track_data = nb_extended_data - 1;
@@ -284,12 +287,12 @@ void kmlWriterAddPoint(kmlWriter_t *kml, flightLog_t *log, int64_t time, int64_t
             //We'll just assume that the timespan is less than 24 hours, and make up a date
             time += kml->startTime * 1000000;
 
-            coord->lat = frame[log->gpsFieldIndexes.GPS_coord[0]];
-            coord->lon = frame[log->gpsFieldIndexes.GPS_coord[1]];
-            coord->altitude = frame[log->gpsFieldIndexes.GPS_altitude];
+            coord->lat = (int32_t)frame[log->gpsFieldIndexes.GPS_coord[0]];
+            coord->lon = (int32_t)frame[log->gpsFieldIndexes.GPS_coord[1]];
+            coord->altitude = (int16_t)frame[log->gpsFieldIndexes.GPS_altitude];
 
-            coord->frac = time % 1000000;
-            coord->secs = time / 1000000;
+            coord->frac = (uint32_t)time % 1000000;
+            coord->secs = (uint32_t)time / 1000000;
 
             coord->mins = coord->secs / 60;
             coord->secs %= 60;
@@ -369,7 +372,7 @@ void kmlWritePlacemark(kmlWriter_t *kml, flightLog_t *log, char *name, coordList
     {
         fprintf(kml->file, "\t\t\t<name>%s altitude = %u m", name, coord->altitude);
     }
-    fprintf(kml->file, "</name>\n", name);
+    fprintf(kml->file, "</name>\n");
     fprintf(kml->file, "\t\t\t<Point>\n");
     fprintf(kml->file, "\t\t\t\t<altitudeMode>absolute</altitudeMode>\n");
     fprintf(kml->file, "\t\t\t\t<coordinates>");
@@ -403,8 +406,17 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 
     int16_t min_altitude_value = INT16_MAX;
     int16_t max_altitude_value = INT16_MIN;
+    placeValue_t placeValue[NB_EXTENDED_DATA_MAX];
+    for (int i = 0; i < NB_EXTENDED_DATA_MAX; i++)
+    {
+        placeValue[i].min = UINT64_MAX;
+        placeValue[i].max = 0;
+    }
+
     coordList_t *min_altitude_coord;
     coordList_t *max_altitude_coord;
+    coordList_t *placeCoordMin[NB_EXTENDED_DATA_MAX];
+    coordList_t *placeCoordMax[NB_EXTENDED_DATA_MAX];
 
     coordList_t *coordTrak = coordList;
     int track_num = 1;

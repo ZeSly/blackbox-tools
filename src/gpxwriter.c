@@ -58,8 +58,8 @@ void gpxWriterAddPoint(gpxWriter_t *gpx, int64_t time, int32_t lat, int32_t lon,
         //We'll just assume that the timespan is less than 24 hours, and make up a date
         uint32_t hours, mins, secs, frac;
 
-        frac = time % 1000000;
-        secs = time / 1000000;
+        frac = (uint32_t)time % 1000000;
+        secs = (uint32_t)time / 1000000;
 
         mins = secs / 60;
         secs %= 60;
@@ -76,7 +76,7 @@ gpxWriter_t* gpxWriterCreate(const char *filename)
 {
     gpxWriter_t *result = malloc(sizeof(*result));
 
-    result->filename = strdup(filename);
+    result->filename = _strdup(filename);
     result->state = GPXWRITER_STATE_EMPTY;
     result->file = NULL;
 
