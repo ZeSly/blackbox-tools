@@ -141,8 +141,6 @@ kmlWriter_t* kmlWriterCreate(const char *filename, bool trackModes)
 
 void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, int64_t *bufferedMainFrame, int64_t *bufferedSlowFrame)
 {
-    char datetime[128];
-
     for (int i = 0; i < NB_EXTENDED_DATA_MAX ; i++)
     {
         placeValue[i].min = UINT64_MAX;
@@ -196,13 +194,6 @@ void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, in
     }
 
     clearCoordList();
-
-    strftime(datetime, sizeof(datetime), "%#c", &log->sysConfig.logStartTime);
-    kml->file = fopen(kml->filename, "wb");
-
-    fprintf(kml->file, KML_FILE_HEADER);
-    fprintf(kml->file, "\t<name>Blackbox flight log %s</name>\n", kml->filename);
-    fprintf(kml->file, "\t<snippet>Log started %s</snippet>\n", datetime);
 }
 
 void kmlWriteStyles(kmlWriter_t *kml)
@@ -395,6 +386,15 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 
     if (kml->state = KMLWRITER_STATE_ERROR)
         return;
+
+    char datetime[128];
+
+    strftime(datetime, sizeof(datetime), "%#c", &log->sysConfig.logStartTime);
+    kml->file = fopen(kml->filename, "wb");
+
+    fprintf(kml->file, KML_FILE_HEADER);
+    fprintf(kml->file, "\t<name>Blackbox flight log %s</name>\n", kml->filename);
+    fprintf(kml->file, "\t<snippet>Log started %s</snippet>\n", datetime);
 
     kmlWriteStyles(kml);
 
