@@ -185,6 +185,14 @@ void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, in
             }
         }
 
+        if (!found)
+        {
+            fprintf(stderr, "Unknown field %s in --kml-infos\n", extended_data[e].name);
+            free(kml->filename);
+            kml->state = KMLWRITER_STATE_ERROR;
+            return;
+        }
+
     }
 
     clearCoordList();
@@ -268,11 +276,14 @@ void kmlWriterAddPoint(kmlWriter_t *kml, flightLog_t *log, int64_t time, int64_t
         return;
 
     if (kml->state == KMLWRITER_STATE_EMPTY) {
+        kml->state = KMLWRITER_STATE_WRITING_TRACK;
         kmlWriterAddPreamble(kml, log, frame, bufferedMainFrame, bufferedSlowFrame);
         kml->startTime = log->sysConfig.logStartTime.tm_hour * 3600 + log->sysConfig.logStartTime.tm_min * 60 + log->sysConfig.logStartTime.tm_sec;
-        kml->state = KMLWRITER_STATE_WRITING_TRACK;
         prev_change_value = 0;
     }
+
+    if (kml->state == KMLWRITER_STATE_ERROR)
+        return;
 
     if (time != -1) {
 
@@ -380,6 +391,9 @@ void kmlWritePlacemark(kmlWriter_t *kml, flightLog_t *log, char *name, coordList
 void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 {
     if (!kml)
+        return;
+
+    if (kml->state = KMLWRITER_STATE_ERROR)
         return;
 
     kmlWriteStyles(kml);

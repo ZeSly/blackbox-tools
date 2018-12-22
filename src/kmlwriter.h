@@ -9,6 +9,7 @@
 typedef enum KmlWriterState {
     KMLWRITER_STATE_EMPTY = 0,
     KMLWRITER_STATE_WRITING_TRACK,
+    KMLWRITER_STATE_ERROR
 } KmlWriterState;
 
 typedef struct kmlWriter_t {
