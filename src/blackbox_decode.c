@@ -42,7 +42,7 @@ typedef struct decodeOptions_t {
     int simulateIMU, imuIgnoreMag;
     int simulateCurrentMeter;
     int mergeGPS;
-    int kml;
+    int kml, kmlTrackModes;
     const char *outputPrefix;
 
     bool overrideSimCurrentMeterOffset, overrideSimCurrentMeterScale;
@@ -57,7 +57,7 @@ decodeOptions_t options = {
     .simulateIMU = false, .imuIgnoreMag = 0,
     .simulateCurrentMeter = false,
     .mergeGPS = 0,
-    .kml = 0,
+    .kml = 0, .kmlTrackModes = 0,
 
     .overrideSimCurrentMeterOffset = false,
     .overrideSimCurrentMeterScale = false,
@@ -1209,7 +1209,7 @@ int decodeFlightLog(flightLog_t *log, const char *filename, int logIndex)
 
         if (options.kml) {
             options.mergeGPS = 1;
-            kml = kmlWriterCreate(kmlFilename);
+            kml = kmlWriterCreate(kmlFilename, options.kmlTrackModes);
             free(kmlFilename);
         }
     }
@@ -1295,6 +1295,10 @@ void printUsage(const char *argv0)
         "\n"
         "   --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately\n"
         "   --kml                    Export kml file, will activate --merge-gps\n"
+        "   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed\n"
+        "   --kml-track-modes        Generate different track for each active RC modes along the flight\n"
+        "   --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos\n"
+        "   --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos\n"
         "\n"
         "   --simulate-current-meter Simulate a virtual current meter using throttle data\n"
         "   --sim-current-meter-scale   Override the FC's settings for the current meter simulation\n"
@@ -1339,6 +1343,9 @@ void parseCommandlineOptions(int argc, char **argv)
         SETTING_UNIT_ACCELERATION,
         SETTING_UNIT_FRAME_TIME,
         SETTING_UNIT_FLAGS,
+        SETTING_KML_INFOS,
+        SETTING_KML_MINIMUMS,
+        SETTING_KML_MAXIMUMS
     };
 
     while (1)
@@ -1351,6 +1358,10 @@ void parseCommandlineOptions(int argc, char **argv)
             {"stdout", no_argument, &options.toStdout, 1},
             {"merge-gps", no_argument, &options.mergeGPS, 1},
             {"kml", no_argument, &options.kml, 1 },
+            {"kml-infos", required_argument, 0, SETTING_KML_INFOS},
+            {"kml-track-modes", no_argument, &options.kmlTrackModes, 1},
+            { "kml-min", required_argument, 0, SETTING_KML_MINIMUMS },
+            { "kml-max", required_argument, 0, SETTING_KML_MAXIMUMS },
             {"simulate-imu", no_argument, &options.simulateIMU, 1},
             {"simulate-current-meter", no_argument, &options.simulateCurrentMeter, 1},
             {"imu-ignore-mag", no_argument, &options.imuIgnoreMag, 1},
@@ -1448,6 +1459,15 @@ void parseCommandlineOptions(int argc, char **argv)
             case SETTING_CURRENT_METER_OFFSET:
                 options.overrideSimCurrentMeterOffset = true;
                 options.simCurrentMeterOffset = atoi(optarg);
+            break;
+            case SETTING_KML_INFOS:
+                kmlSetInfos(optarg);
+            break;
+            case SETTING_KML_MINIMUMS:
+                kmlSetMinimums(optarg);
+            break;
+            case SETTING_KML_MAXIMUMS:
+                kmlSetMaximums(optarg);
             break;
             case '\0':
                 //Longopt which has set a flag

@@ -10,6 +10,7 @@ bool fprintfMainFieldInUnit(flightLog_t *log, FILE *file, int fieldIndex, int64_
 void fprintfSlowFrameFields(flightLog_t *log, FILE *file, int64_t fieldValue, int i);
 
 #define GPS_DEGREES_DIVIDER 10000000L
+#define NB_EXTENDED_DATA_MAX 10
 
 static const char KML_FILE_HEADER[] =
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -44,7 +45,7 @@ typedef struct {
     uint8_t placeFlags;
 } extendedData_t;
 
-extendedData_t extended_data[10];
+extendedData_t extended_data[NB_EXTENDED_DATA_MAX];
 int nb_extended_data = 0;
 int change_track_data = -1;
 int nb_change_track = 0;
@@ -54,9 +55,10 @@ typedef struct  {
     uint64_t min;
 } placeValue_t ;
 
-placeValue_t placeValue[10];
-coordList_t *placeCoordMin[10];
-coordList_t *placeCoordMax[10];
+placeValue_t placeValue[NB_EXTENDED_DATA_MAX];
+coordList_t *placeCoordMin[NB_EXTENDED_DATA_MAX];
+coordList_t *placeCoordMax[NB_EXTENDED_DATA_MAX];
+uint8_t altitude_place_flags = 0;
 
 static void clearCoordList()
 {
@@ -71,25 +73,86 @@ static void clearCoordList()
     coordList = NULL;
 }
 
-void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, int64_t *bufferedMainFrame, int64_t *bufferedSlowFrame)
+bool kmlSetMinimums(const char *optarg)
+{
+    char *tok = strtok(optarg, ",");
+    while (tok != NULL)
+    {
+        for (int e = 0; e < nb_extended_data; e++)
+        {
+            if (strcmp(tok, extended_data[e].name) == 0)
+            {
+                extended_data[e].placeFlags |= PLACE_MIN;
+            }
+            else if (strcmp(tok, "altitude") == 0)
+            {
+                altitude_place_flags |= PLACE_MIN;
+            }
+        }
+        tok = strtok(NULL, ",");
+    }
+}
+
+bool kmlSetMaximums(const char *optarg)
+{
+    char *tok = strtok(optarg, ",");
+    while (tok != NULL)
+    {
+        for (int e = 0; e < nb_extended_data; e++)
+        {
+            if (strcmp(tok, extended_data[e].name) == 0)
+            {
+                extended_data[e].placeFlags |= PLACE_MAX;
+            }
+            else if (strcmp(tok, "altitude") == 0)
+            {
+                altitude_place_flags |= PLACE_MAX;
+            }
+        }
+        tok = strtok(NULL, ",");
+    }
+}
+
+bool kmlSetInfos(const char *optarg)
 {
     nb_extended_data = 0;
+
+    char *tok = strtok(optarg, ",");
+    while (tok != NULL & nb_extended_data < NB_EXTENDED_DATA_MAX)
+    {
+        extended_data[nb_extended_data++].name = tok;
+        tok = strtok(NULL, ",");
+    }
+    if (nb_extended_data == NB_EXTENDED_DATA_MAX)
+        fprintf(stderr, "Waring, max infos for --kml-infos is %u\n", NB_EXTENDED_DATA_MAX);
+}
+
+kmlWriter_t* kmlWriterCreate(const char *filename, bool trackModes)
+{
+    kmlWriter_t *result = malloc(sizeof(*result));
+
+    result->filename = strdup(filename);
+    result->state = KMLWRITER_STATE_EMPTY;
+    result->file = NULL;
+    result->trackModes = trackModes;
+
+    return result;
+}
+
+void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, int64_t *bufferedMainFrame, int64_t *bufferedSlowFrame)
+{
     char datetime[128];
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < NB_EXTENDED_DATA_MAX ; i++)
     {
         placeValue[i].min = UINT64_MAX;
         placeValue[i].max = 0;
     }
 
-    extended_data[nb_extended_data].placeFlags = PLACE_MIN;
-    extended_data[nb_extended_data++].name = "rssi";
-    extended_data[nb_extended_data++].name = "GPS_numSat";
-    extended_data[nb_extended_data].placeFlags = PLACE_MAX;
-    extended_data[nb_extended_data++].name = "GPS_speed";
-    extended_data[nb_extended_data++].name = "vbat";
-    extended_data[nb_extended_data++].name = "flightModeFlags";
-    change_track_data = nb_extended_data - 1;
+    if (kml->trackModes) {
+        extended_data[nb_extended_data++].name = "flightModeFlags";
+        change_track_data = nb_extended_data - 1;
+    }
 
     for (int e = 0; e < nb_extended_data; e++)
     {
@@ -136,7 +199,7 @@ void kmlWriterAddPreamble(kmlWriter_t *kml, flightLog_t *log, int64_t *frame, in
 
 void kmlWriteStyles(kmlWriter_t *kml)
 {
-    //uint32_t color[10] =
+    //uint32_t color[NB_EXTENDED_DATA_MAX] =
     //{
     //    0x99ffac59;
     //};
@@ -150,8 +213,15 @@ void kmlWriteStyles(kmlWriter_t *kml)
         fprintf(kml->file, "\t\t\t</Icon>\n");
         fprintf(kml->file, "\t\t</IconStyle>\n");
         fprintf(kml->file, "\t\t<LineStyle>\n");
-        fprintf(kml->file, "\t\t\t<color>00ffff00</color>\n");
-        fprintf(kml->file, "\t\t\t<colorMode>random</colorMode>\n");
+        if (nb_change_track > 0)
+        {
+            fprintf(kml->file, "\t\t\t<color>ffffff00</color>\n");
+            fprintf(kml->file, "\t\t\t<colorMode>random</colorMode>\n");
+        }
+        else
+        {
+            fprintf(kml->file, "\t\t\t<color>99ffac59</color>\n");
+        }
         fprintf(kml->file, "\t\t\t<width>6</width>\n");
         fprintf(kml->file, "\t\t</LineStyle>\n");
         fprintf(kml->file, "\t</Style>\n");
@@ -188,17 +258,6 @@ void kmlWriteStyles(kmlWriter_t *kml)
         //}
         //fprintf(kml->file, "\t</Schema>\n");
     }
-}
-
-kmlWriter_t* kmlWriterCreate(const char *filename)
-{
-    kmlWriter_t *result = malloc(sizeof(*result));
-
-    result->filename = strdup(filename);
-    result->state = KMLWRITER_STATE_EMPTY;
-    result->file = NULL;
-
-    return result;
 }
 
 void kmlWriterAddPoint(kmlWriter_t *kml, flightLog_t *log, int64_t time, int64_t *frame, int64_t *bufferedMainFrame, int64_t *bufferedSlowFrame)
@@ -306,7 +365,7 @@ void kmlWritePlacemark(kmlWriter_t *kml, flightLog_t *log, char *name, coordList
     }
     else
     {
-        fprintf(kml->file, "\t\t\t<name>%s altitude = %u", name, coord->altitude);
+        fprintf(kml->file, "\t\t\t<name>%s altitude = %u m", name, coord->altitude);
     }
     fprintf(kml->file, "</name>\n", name);
     fprintf(kml->file, "\t\t\t<Point>\n");
@@ -328,7 +387,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     fprintf(kml->file, "\t<Folder>\n");
     fprintf(kml->file, "\t\t<name>Blackbox flight log Tracks</name>\n");
 
-    uint8_t altitude_place_flags = PLACE_MIN|PLACE_MAX;
     int16_t min_altitude_value = INT16_MAX;
     int16_t max_altitude_value = INT16_MIN;
     coordList_t *min_altitude_coord;
@@ -344,8 +402,10 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         fprintf(kml->file, "\t\t\t<gx:Track>\n");
         fprintf(kml->file, "\t\t\t\t<altitudeMode>absolute</altitudeMode>\n");
 
+        coordList_t *coord;
+
         uint64_t prev_change_value = coordTrak->extended_data[change_track_data];
-        for (coordList_t *coord = coordTrak; coord != NULL; coord = coord->next)
+        for (coord = coordTrak; coord != NULL; coord = coord->next)
         {
             fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
                 log->sysConfig.logStartTime.tm_year, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
@@ -361,7 +421,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         }
 
         prev_change_value = coordTrak->extended_data[change_track_data];
-        for (coordList_t *coord = coordTrak; coord != NULL; coord = coord->next)
+        for (coord = coordTrak; coord != NULL; coord = coord->next)
         {
             fputs("\t\t\t\t<gx:coord>", kml->file);
             kmlWriteCoordinates(kml, coord->lat, coord->lon, coord->altitude, ' ');
@@ -387,8 +447,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 
         if (nb_extended_data > 0)
         {
-            coordList_t *coord;
-
             fprintf(kml->file, "\t\t\t\t<ExtendedData>\n");
             fprintf(kml->file, "\t\t\t\t\t<SchemaData schemaUrl = \"#schema\">\n");
             for (int e = 0; e < nb_extended_data; e++)
@@ -421,10 +479,11 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
                 fprintf(kml->file, "\t\t\t\t\t\t</gx:SimpleArrayData>\n");
             }
 
-            coordTrak = coord;
             fprintf(kml->file, "\t\t\t\t\t</SchemaData>\n");
             fprintf(kml->file, "\t\t\t\t</ExtendedData>\n");
         }
+
+        coordTrak = coord;
 
         fprintf(kml->file, "\t\t\t</gx:Track>\n");
         fprintf(kml->file, "\t\t</Placemark>\n");
