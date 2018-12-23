@@ -252,10 +252,22 @@ void kmlWriteStyles(kmlWriter_t *kml)
         fprintf(kml->file, "\t\t</Pair>\n");
         fprintf(kml->file, "\t</StyleMap>\n");
 
+        //fprintf(kml->file, "\t<Style id=\"infos_balloon\">\n");
+        //fprintf(kml->file, "\t\t<BalloonStyle>\n");
+        //fprintf(kml->file, "\t\t\t<text>\n");
+        //fprintf(kml->file, "\t\t\t\t<![CDATA[\n");
+        //for (int e = 0; e < nb_extended_data; e++) {
+        //    fprintf(kml->file, "\t\t\t\t\t%s : $[%s]</br>\n", extended_data[e].name, extended_data[e].name);
+        //}
+        //fprintf(kml->file, "\t\t\t\t]]>\n");
+        //fprintf(kml->file, "\t\t\t</text>\n");
+        //fprintf(kml->file, "\t\t</BalloonStyle>\n");
+        //fprintf(kml->file, "\t</Style>\n");
+
         //fprintf(kml->file, "\t<Schema id=\"schema\">\n");
         //for (int e = 0; e < nb_extended_data; e++) {
-        //    fprintf(kml->file, "\t\t<gx:SimpleArrayField name=\"%s\" type=\"int\">\n", extended_data[e].name);
-        //    fprintf(kml->file, "\t\t\t<displayName>Heart Rate</displayName>\n");
+        //    fprintf(kml->file, "\t\t<gx:SimpleArrayField name=\"%s\">\n", extended_data[e].name);
+        //    fprintf(kml->file, "\t\t\t<displayName>%s</displayName>\n", extended_data[e].name);
         //    fprintf(kml->file, "\t\t</gx:SimpleArrayField>\n");
         //}
         //fprintf(kml->file, "\t</Schema>\n");
@@ -291,8 +303,8 @@ void kmlWriterAddPoint(kmlWriter_t *kml, flightLog_t *log, int64_t time, int64_t
             coord->lon = (int32_t)frame[log->gpsFieldIndexes.GPS_coord[1]];
             coord->altitude = (int16_t)frame[log->gpsFieldIndexes.GPS_altitude];
 
-            coord->frac = (uint32_t)time % 1000000;
-            coord->secs = (uint32_t)time / 1000000;
+            coord->frac = (uint32_t)(time % 1000000);
+            coord->secs = (uint32_t)(time / 1000000);
 
             coord->mins = coord->secs / 60;
             coord->secs %= 60;
@@ -387,7 +399,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     if (!kml)
         return;
 
-    if (kml->state = KMLWRITER_STATE_ERROR)
+    if (kml->state == KMLWRITER_STATE_ERROR)
         return;
 
     char datetime[128];
