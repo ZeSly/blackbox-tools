@@ -446,7 +446,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         for (coord = coordTrak; coord != NULL; coord = coord->next)
         {
             fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
-                log->sysConfig.logStartTime.tm_year, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
+                log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
                 coord->hours, coord->mins, coord->secs, coord->frac);
 
             if (nb_extended_data > 0 && change_track_data >= 0)
