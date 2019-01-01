@@ -539,7 +539,7 @@ void outputGPSFrame(flightLog_t *log, int64_t *frame)
 	bool haveRequiredPrecision = log->gpsFieldIndexes.GPS_numSat == -1 || frame[log->gpsFieldIndexes.GPS_numSat] >= MIN_GPS_SATELLITES;
 
     if (haveRequiredFields && haveRequiredPrecision) {
-		gpxWriterAddPoint(gpx, gpsFrameTime, frame[log->gpsFieldIndexes.GPS_coord[0]], frame[log->gpsFieldIndexes.GPS_coord[1]], frame[log->gpsFieldIndexes.GPS_altitude]);
+		gpxWriterAddPoint(gpx, log, gpsFrameTime, frame[log->gpsFieldIndexes.GPS_coord[0]], frame[log->gpsFieldIndexes.GPS_coord[1]], frame[log->gpsFieldIndexes.GPS_altitude]);
         kmlWriterAddPoint(kml, log, gpsFrameTime, frame, bufferedMainFrame, bufferedSlowFrame);
     }
 
@@ -723,7 +723,7 @@ void onFrameReadyMerge(flightLog_t *log, bool frameValid, int64_t *frame, uint8_
 				bool haveRequiredPrecision = log->gpsFieldIndexes.GPS_numSat == -1 || frame[log->gpsFieldIndexes.GPS_numSat] >= MIN_GPS_SATELLITES;
 
                 if (haveRequiredFields && haveRequiredPrecision) {
-                    gpxWriterAddPoint(gpx, gpsFrameTime, frame[log->gpsFieldIndexes.GPS_coord[0]], frame[log->gpsFieldIndexes.GPS_coord[1]], frame[log->gpsFieldIndexes.GPS_altitude]);
+                    gpxWriterAddPoint(gpx, log, gpsFrameTime, frame[log->gpsFieldIndexes.GPS_coord[0]], frame[log->gpsFieldIndexes.GPS_coord[1]], frame[log->gpsFieldIndexes.GPS_altitude]);
                     kmlWriterAddPoint(kml, log, gpsFrameTime, frame, bufferedMainFrame, bufferedSlowFrame);
                 }
             }
