@@ -565,32 +565,39 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 
             for (int e = 0; e < nb_extended_data; e++)
             {
-                fprintf(kml->file, "\t\t\t\t\t\t<gx:SimpleArrayData name=\"%s\">\n", extended_data[e].name);
-                prev_change_value = coordTrak->extended_data[change_track_data];
-                for (coord = coordTrak; coord != NULL; coord = coord->next)
+                if (extended_data[e].frameBuffer != NULL)
                 {
-                    fputs("\t\t\t\t\t\t\t<gx:value>", kml->file);
-                    kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e);
-                    fputs("</gx:value>\n", kml->file);
-
-                    if (extended_data[e].placeFlags & PLACE_MAX && coord->extended_data[e] > placeValue[e].max) {
-                        placeValue[e].max = coord->extended_data[e];
-                        placeCoordMax[e] = coord;
-                    }
-                    if (extended_data[e].placeFlags & PLACE_MIN && coord->extended_data[e] < placeValue[e].min) {
-                        placeValue[e].min = coord->extended_data[e];
-                        placeCoordMin[e] = coord;
-                    }
-
-                    if (change_track_data >= 0)
+                    fprintf(kml->file, "\t\t\t\t\t\t<gx:SimpleArrayData name=\"%s\">\n", extended_data[e].name);
+                    prev_change_value = coordTrak->extended_data[change_track_data];
+                    for (coord = coordTrak; coord != NULL; coord = coord->next)
                     {
-                        if (coord->extended_data[change_track_data] != prev_change_value)
-                            break;
+                        fputs("\t\t\t\t\t\t\t<gx:value>", kml->file);
+                        kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e);
+                        fputs("</gx:value>\n", kml->file);
 
-                        prev_change_value = coord->extended_data[change_track_data];
+                        if (extended_data[e].placeFlags & PLACE_MAX && coord->extended_data[e] > placeValue[e].max) {
+                            placeValue[e].max = coord->extended_data[e];
+                            placeCoordMax[e] = coord;
+                        }
+                        if (extended_data[e].placeFlags & PLACE_MIN && coord->extended_data[e] < placeValue[e].min) {
+                            placeValue[e].min = coord->extended_data[e];
+                            placeCoordMin[e] = coord;
+                        }
+
+                        if (change_track_data >= 0)
+                        {
+                            if (coord->extended_data[change_track_data] != prev_change_value)
+                                break;
+
+                            prev_change_value = coord->extended_data[change_track_data];
+                        }
                     }
+                    fprintf(kml->file, "\t\t\t\t\t\t</gx:SimpleArrayData>\n");
                 }
-                fprintf(kml->file, "\t\t\t\t\t\t</gx:SimpleArrayData>\n");
+                else
+                {
+                    extended_data[e].placeFlags = 0;
+                }
             }
 
             fprintf(kml->file, "\t\t\t\t\t</SchemaData>\n");
