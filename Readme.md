@@ -23,7 +23,8 @@ can drag and drop your log files onto `blackbox_decode` and they'll all be decod
 discard the original ".TXT" file, because it is required as input for other tools like the PNG image renderer.
 
 If your log file contains GPS data then a ".gpx" file will also be produced. This file can be opened in Google Earth
-or some other GPS mapping software for analysis. This feature is experimental.
+or some other GPS mapping software for analysis. You can also produce a ".kml" file for Google Earth with additionnal
+infos inside
 
 Use the `--help` option to show more details:
 
@@ -50,7 +51,7 @@ Options:
 
    --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately
    --kml                    Export kml file, will activate --merge-gps
-   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed
+   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed,distance
    --kml-track-modes        Generate different track for each active RC modes along the flight
    --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos
    --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos

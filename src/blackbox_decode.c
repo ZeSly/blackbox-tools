@@ -1295,7 +1295,7 @@ void printUsage(const char *argv0)
         "\n"
         "   --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately\n"
         "   --kml                    Export kml file, will activate --merge-gps\n"
-        "   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed\n"
+        "   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed,distance\n"
         "   --kml-track-modes        Generate different track for each active RC modes along the flight\n"
         "   --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos\n"
         "   --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos\n"
