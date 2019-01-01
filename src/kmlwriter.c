@@ -40,7 +40,7 @@ typedef enum {
 typedef struct {
     char *name;
     int type;
-    uint64_t* frameBuffer;
+    int64_t* frameBuffer;
     int index;
     uint8_t placeFlags;
 } extendedData_t;

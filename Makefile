@@ -33,7 +33,7 @@ BIN_DIR		 = $(ROOT)/obj
 
 # Source files common to all targets
 COMMON_SRC	 = parser.c tools.c platform.c stream.c decoders.c units.c blackbox_fielddefs.c
-DECODER_SRC	 = $(COMMON_SRC) blackbox_decode.c gpxwriter.c imu.c battery.c stats.c
+DECODER_SRC	 = $(COMMON_SRC) blackbox_decode.c gpxwriter.c kmlwriter.c imu.c battery.c stats.c
 RENDERER_SRC = $(COMMON_SRC) blackbox_render.c datapoints.c embeddedfont.c expo.c imu.c
 ENCODER_TESTBED_SRC = $(COMMON_SRC) encoder_testbed.c encoder_testbed_io.c
 
@@ -68,6 +68,7 @@ CFLAGS		= $(ARCH_FLAGS) \
 		$(addprefix -D,$(OPTIONS)) \
 		$(addprefix -I,$(INCLUDE_DIRS)) \
 		$(if $(strip $(BLACKBOX_VERSION)), -DBLACKBOX_VERSION=$(BLACKBOX_VERSION)) \
+		-D_strdup=strdup \
 		$(DEBUG_FLAGS) \
 		-std=gnu99 \
 		-pthread \
