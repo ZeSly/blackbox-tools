@@ -28,7 +28,7 @@ or some other GPS mapping software for analysis. This feature is experimental.
 Use the `--help` option to show more details:
 
 ```text
-Blackbox flight log decoder by Nicholas Sherlock
+Blackbox flight log decoder by Sylvain Girard, based on the work of Nicholas Sherlock (Jan  1 2019 16:20:35)
 
 Usage:
      blackbox_decode [options] <input logs>
@@ -38,14 +38,23 @@ Options:
    --index <num>            Choose the log from the file that should be decoded (or omit to decode all)
    --limits                 Print the limits and range of each field
    --stdout                 Write log to stdout instead of to a file
+
    --unit-amperage <unit>   Current meter unit (raw|mA|A), default is A (amps)
+   --unit-flags <unit>      State flags unit (raw|flags), default is flags
    --unit-frame-time <unit> Frame timestamp unit (us|s), default is us (microseconds)
    --unit-height <unit>     Height unit (m|cm|ft), default is cm (centimeters)
    --unit-rotation <unit>   Rate of rotation unit (raw|deg/s|rad/s), default is raw
    --unit-acceleration <u>  Acceleration unit (raw|g|m/s2), default is raw
    --unit-gps-speed <unit>  GPS speed unit (mps|kph|mph), default is mps (meters per second)
    --unit-vbat <unit>       Vbat unit (raw|mV|V), default is V (volts)
+
    --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately
+   --kml                    Export kml file, will activate --merge-gps
+   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed
+   --kml-track-modes        Generate different track for each active RC modes along the flight
+   --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos
+   --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos
+
    --simulate-current-meter Simulate a virtual current meter using throttle data
    --sim-current-meter-scale   Override the FC's settings for the current meter simulation
    --sim-current-meter-offset  Override the FC's settings for the current meter simulation
@@ -53,6 +62,7 @@ Options:
    --imu-ignore-mag         Ignore magnetometer data when computing heading
    --declination <val>      Set magnetic declination in degrees.minutes format (e.g. -12.58 for New York)
    --declination-dec <val>  Set magnetic declination in decimal degrees (e.g. -12.97 for New York)
+
    --debug                  Show extra debugging information
    --raw                    Don't apply predictions to fields (show raw field deltas)
 ```
