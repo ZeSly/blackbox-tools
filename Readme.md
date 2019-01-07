@@ -39,6 +39,7 @@ Options:
    --index <num>            Choose the log from the file that should be decoded (or omit to decode all)
    --limits                 Print the limits and range of each field
    --stdout                 Write log to stdout instead of to a file
+   --datetime               Add a dateTime column with UTC date time
 
    --unit-amperage <unit>   Current meter unit (raw|mA|A), default is A (amps)
    --unit-flags <unit>      State flags unit (raw|flags), default is flags

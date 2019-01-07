@@ -42,6 +42,7 @@ typedef struct decodeOptions_t {
     int simulateIMU, imuIgnoreMag;
     int simulateCurrentMeter;
     int mergeGPS;
+    int datetime;
     int kml, kmlTrackModes;
     const char *outputPrefix;
 
@@ -57,6 +58,7 @@ decodeOptions_t options = {
     .simulateIMU = false, .imuIgnoreMag = 0,
     .simulateCurrentMeter = false,
     .mergeGPS = 0,
+    .datetime = 0,
     .kml = 0, .kmlTrackModes = 0,
 
     .overrideSimCurrentMeterOffset = false,
@@ -156,8 +158,12 @@ static void fprintfMilliampsInUnit(FILE *file, int32_t milliamps, Unit unit)
     }
 }
 
-static void fprintfMicrosecondsInUnit(FILE *file, int64_t microseconds, Unit unit)
+static void fprintfMicrosecondsInUnit(flightLog_t *log, FILE *file, int64_t microseconds, Unit unit)
 {
+    int64_t startTime = log->sysConfig.logStartTime.tm_hour * 3600 + log->sysConfig.logStartTime.tm_min * 60 + log->sysConfig.logStartTime.tm_sec;
+    int64_t time = microseconds + startTime * 1000000;
+    uint32_t hours, mins, secs, frac;
+
     switch (unit) {
         case UNIT_MICROSECONDS:
             fprintf(file, "%" PRId64, microseconds);
@@ -172,6 +178,21 @@ static void fprintfMicrosecondsInUnit(FILE *file, int64_t microseconds, Unit uni
             fprintf(stderr, "Bad time unit %d\n", (int) unit);
             exit(-1);
         break;
+    }
+
+    if (options.datetime) {
+        frac = (uint32_t)(time % 1000000);
+        secs = (uint32_t)(time / 1000000);
+
+        mins = secs / 60;
+        secs %= 60;
+
+        hours = mins / 60;
+        mins %= 60;
+
+        fprintf(file, ",%04u-%02u-%02uT%02u:%02u:%02u.%06uZ",
+            log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
+            hours, mins, secs, frac);
     }
 }
 
@@ -266,7 +287,7 @@ bool fprintfMainFieldInUnit(flightLog_t *log, FILE *file, int fieldIndex, int64_
         case UNIT_MILLISECONDS:
         case UNIT_SECONDS:
             if (fieldIndex == log->mainFieldIndexes.time) {
-                fprintfMicrosecondsInUnit(file, fieldValue, unit);
+                fprintfMicrosecondsInUnit(log, file, fieldValue, unit);
                 ret = true;
             }
         break;
@@ -402,7 +423,12 @@ void createGPSCSVFile(flightLog_t *log)
 
         if (gpsCsvFile) {
             // Since the GPS frame itself may or may not include a timestamp field, skip it and print our own:
-            fprintf(gpsCsvFile, "time (%s), ", UNIT_NAME[options.unitFrameTime]);
+            if (options.datetime) {
+                fprintf(gpsCsvFile, "time (%s), dateTime,", UNIT_NAME[options.unitFrameTime]);
+            }
+            else {
+                fprintf(gpsCsvFile, "time (%s),", UNIT_NAME[options.unitFrameTime]);
+            }
 
             outputFieldNamesHeader(gpsCsvFile, &log->frameDefs['G'], gpsGFieldUnit, true);
 
@@ -546,7 +572,7 @@ void outputGPSFrame(flightLog_t *log, int64_t *frame)
     createGPSCSVFile(log);
 
     if (gpsCsvFile) {
-        fprintfMicrosecondsInUnit(gpsCsvFile, gpsFrameTime, options.unitFrameTime);
+        fprintfMicrosecondsInUnit(log, gpsCsvFile, gpsFrameTime, options.unitFrameTime);
         fprintf(gpsCsvFile, ", ");
 
         outputGPSFields(log, gpsCsvFile, frame);
@@ -942,6 +968,10 @@ void writeMainCSVHeader(flightLog_t *log)
         if (mainFieldUnit[i] != UNIT_RAW) {
             fprintf(csvFile, " (%s)", UNIT_NAME[mainFieldUnit[i]]);
         }
+
+        if (options.datetime && strcmp(log->frameDefs['I'].fieldName[i], "time") == 0) {
+            fprintf(csvFile, ", dateTime");
+        }
     }
 
     if (options.simulateIMU) {
@@ -1283,6 +1313,7 @@ void printUsage(const char *argv0)
         "   --index <num>            Choose the log from the file that should be decoded (or omit to decode all)\n"
         "   --limits                 Print the limits and range of each field\n"
         "   --stdout                 Write log to stdout instead of to a file\n"
+        "   --datetime               Add a dateTime column with UTC date time\n"
         "\n"
         "   --unit-amperage <unit>   Current meter unit (raw|mA|A), default is A (amps)\n"
         "   --unit-flags <unit>      State flags unit (raw|flags), default is flags\n"
@@ -1356,7 +1387,8 @@ void parseCommandlineOptions(int argc, char **argv)
             {"debug", no_argument, &options.debug, 1},
             {"limits", no_argument, &options.limits, 1},
             {"stdout", no_argument, &options.toStdout, 1},
-            {"merge-gps", no_argument, &options.mergeGPS, 1},
+            { "merge-gps", no_argument, &options.mergeGPS, 1 },
+            { "datetime", no_argument, &options.datetime, 1 },
             {"kml", no_argument, &options.kml, 1 },
             {"kml-infos", required_argument, 0, SETTING_KML_INFOS},
             {"kml-track-modes", no_argument, &options.kmlTrackModes, 1},
