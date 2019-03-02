@@ -52,9 +52,6 @@ static int nb_change_track = 0;
 
 static uint8_t altitude_place_flags = 0;
 
-static bool distance_place_max = false;
-static bool distance_extended_data = false;
-
 static void clearCoordList()
 {
     coordList_t *coord = coordList;
@@ -113,10 +110,6 @@ bool kmlSetMaximums(char *optarg)
                 altitude_place_flags |= PLACE_MAX;
                 found = true;
             }
-            else if (strcmp(tok, "distance") == 0)
-            {
-                distance_place_max = true;
-            }
         }
         tok = strtok(NULL, ",");
     }
@@ -131,14 +124,7 @@ void kmlSetInfos(char *optarg)
     char *tok = strtok(optarg, ",");
     while (tok != NULL && nb_extended_data < NB_EXTENDED_DATA_MAX)
     {
-        if (strcmp(tok, "distance") == 0)
-        {
-            distance_extended_data = true;
-        }
-        else
-        {
-            extended_data[nb_extended_data++].name = tok;
-        }
+        extended_data[nb_extended_data++].name = tok;
         tok = strtok(NULL, ",");
     }
     if (nb_extended_data == NB_EXTENDED_DATA_MAX)
@@ -407,46 +393,6 @@ void kmlWritePlacemark(kmlWriter_t *kml, flightLog_t *log, char *name, coordList
     fprintf(kml->file, "\t\t</Placemark>\n");
 }
 
-void kmlWritePlacemarkDistance(kmlWriter_t *kml, flightLog_t *log, char *name, coordList_t *coord, double d)
-{
-    fprintf(kml->file, "\t\t<Placemark>\n");
-    fprintf(kml->file, "\t\t\t<name>%s distance = %.1f m", name, d);
-    fprintf(kml->file, "</name>\n");
-    fprintf(kml->file, "\t\t\t<Point>\n");
-    fprintf(kml->file, "\t\t\t\t<altitudeMode>absolute</altitudeMode>\n");
-    fprintf(kml->file, "\t\t\t\t<coordinates>");
-    kmlWriteCoordinates(kml, coord->lat, coord->lon, coord->altitude, ',');
-    fprintf(kml->file, "</coordinates>\n");
-    fprintf(kml->file, "\t\t\t</Point>\n");
-    fprintf(kml->file, "\t\t</Placemark>\n");
-}
-
-double kmlGetDistance(coordList_t *coord1, coordList_t *coord2)
-{
-    const double GPS_DEGREES_DIVIDER = 10000000.0;
-    #define d2r 3.14159265358979323846 / 180.0
-
-    double lat1 = (double)coord1->lat / GPS_DEGREES_DIVIDER;
-    double long1 = (double)coord1->lon / GPS_DEGREES_DIVIDER;
-    double lat2 = (double)coord2->lat / GPS_DEGREES_DIVIDER;
-    double long2 = (double)coord2->lon / GPS_DEGREES_DIVIDER;
-    double alt1 = coord1->altitude;
-    double alt2 = coord2->altitude;
-
-    // formule haversine
-    double dlong = fabs(long2 - long1) * d2r;
-    double dlat = fabs(lat2 - lat1) * d2r;
-    double a = pow(sin(dlat / 2.0), 2) + cos(lat1 * d2r) * cos(lat2 * d2r) * pow(sin(dlong / 2.0), 2);
-    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    double d = 6371000.0 * c;
-
-    // altitude
-    double delta_alt = fabs(alt1 - alt2);
-    double dist = sqrt(pow(d, 2) + pow(delta_alt, 2));
-
-    return dist;
-}
-
 void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 {
     if (!kml)
@@ -547,22 +493,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
             fprintf(kml->file, "\t\t\t\t<ExtendedData>\n");
             fprintf(kml->file, "\t\t\t\t\t<SchemaData schemaUrl = \"#schema\">\n");
 
-            if (distance_extended_data)
-            {
-                fprintf(kml->file, "\t\t\t\t\t\t<gx:SimpleArrayData name=\"distance\">\n");
-                for (coord = coordTrak; coord != NULL; coord = coord->next)
-                {
-                    double distance = kmlGetDistance(coordList, coord);
-                    fprintf(kml->file, "\t\t\t\t\t\t\t<gx:value>%.1f m</gx:value>", distance);
-                    if (distance > max_distance)
-                    {
-                        max_distance = distance;
-                        max_distance_coord = coord;
-                    }
-                }
-                fprintf(kml->file, "\t\t\t\t\t\t</gx:SimpleArrayData>\n");
-            }
-
             for (int e = 0; e < nb_extended_data; e++)
             {
                 if (extended_data[e].frameBuffer != NULL)
@@ -630,11 +560,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         {
             kmlWritePlacemark(kml, log, "Min", placeCoordMin[e], e);
         }
-    }
-
-    if (max_distance_coord != NULL && distance_place_max)
-    {
-        kmlWritePlacemarkDistance(kml, log, "Max", max_distance_coord, max_distance);
     }
 
     clearCoordList();

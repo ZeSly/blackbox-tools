@@ -89,8 +89,12 @@ bool unitFromName(const char *text, Unit *unit)
         *unit = UNIT_SECONDS;
     } else if (striequals(text, "us")) {
         *unit = UNIT_MICROSECONDS;
-    } else if (striequals(text, "flags")) {
+    }
+    else if (striequals(text, "flags")) {
         *unit = UNIT_FLAGS;
+    }
+    else if (striequals(text, "percent")) {
+        *unit = UNIT_PERCENT;
     } else {
         return false;
     }

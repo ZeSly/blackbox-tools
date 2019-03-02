@@ -33,6 +33,8 @@
 //Likewise for iteration count
 #define MAXIMUM_ITERATION_JUMP_BETWEEN_FRAMES (500 * 10)
 
+#define DEG2RAD 3.14159265358979323846 / 180.0
+
 typedef enum ParserState
 {
     PARSER_STATE_HEADER = 0,
@@ -120,6 +122,8 @@ static void parseFieldNames(const char *line, flightLogFrameDef_t *frameDef)
 {
     char *start, *end;
     bool done = false;
+    bool add_throttle = false;
+    bool add_distance_to_home = false;
 
     //Make a copy of the line so we can manage its lifetime (and write to it to null terminate the fields)
     frameDef->namesLine = _strdup(line);
@@ -142,8 +146,19 @@ static void parseFieldNames(const char *line, flightLogFrameDef_t *frameDef)
 
         *end = 0;
 
+        if (strcmp(start, "rcCommand[3]") == 0) {
+            add_throttle = true;
+        }
+        if (strncmp(start, "GPS_coord", 9) == 0) {
+            add_distance_to_home = true;
+        }
+
         start = end + 1;
     }
+    if (add_throttle)
+        frameDef->fieldName[frameDef->fieldCount++] = "Throttle";
+    if (add_distance_to_home)
+        frameDef->fieldName[frameDef->fieldCount++] = "Distance";
 }
 
 static void parseCommaSeparatedIntegers(char *line, int *target, int maxCount)
@@ -244,6 +259,8 @@ static void identifyMainFields(flightLog_t *log, flightLogFrameDef_t *frameDef)
             log->mainFieldIndexes.loopIteration = fieldIndex;
         } else if (strcmp(fieldName, "time") == 0) {
             log->mainFieldIndexes.time = fieldIndex;
+        } else if (strcmp(fieldName, "Throttle") == 0) {
+            log->mainFieldIndexes.Throttle = fieldIndex;
         }
     }
 }
@@ -281,6 +298,9 @@ static void identifyGPSFields(flightLog_t *log, flightLogFrameDef_t *frameDef)
             int coordIndex = atoi(fieldName + strlen("GPS_coord["));
 
             log->gpsFieldIndexes.GPS_coord[coordIndex] = i;
+        }
+        else if (strcmp(fieldName, "Distance") == 0) {
+            log->gpsFieldIndexes.distance_to_home = i;
         }
     }
 }
@@ -646,13 +666,60 @@ static void parseFrame(flightLog_t *log, mmapStream_t *stream, uint8_t frameType
         int64_t value;
         int64_t values[8];
 
-        if (predictor[i] == FLIGHT_LOG_FIELD_PREDICTOR_INC) {
+        if (strcmp(frameDef->fieldName[i], "Throttle") == 0)
+        {
+            int64_t rcThrottle = frame[log->mainFieldIndexes.rcCommand[3]];
+            if (rcThrottle <= log->sysConfig.motorOutputLow)
+            {
+                frame[i] = 0;
+            }
+            else if (rcThrottle >= log->sysConfig.motorOutputHigh)
+            {
+                frame[i] = 100;
+            }
+            else
+            {
+                int64_t a = log->sysConfig.motorOutputHigh - log->sysConfig.motorOutputLow;
+                int64_t b = rcThrottle - log->sysConfig.motorOutputLow;
+                frame[i] = b * 100 / a;
+            }
+        } else if (strcmp(frameDef->fieldName[i], "Distance") == 0) {
+            static const double GPS_DEGREES_DIVIDER = 10000000.0;
+            static double home_latitude, home_longitude, home_altitude;
+            static bool has_home = false;
+
+            double latitude = (double)frame[log->gpsFieldIndexes.GPS_coord[0]] / GPS_DEGREES_DIVIDER;
+            double longitude = (double)frame[log->gpsFieldIndexes.GPS_coord[1]] / GPS_DEGREES_DIVIDER;
+            double altitude = (double)frame[log->gpsFieldIndexes.GPS_altitude];
+
+            if (!has_home && frame[log->gpsFieldIndexes.GPS_numSat] > 4) {
+                home_latitude = latitude;
+                home_longitude = longitude;
+                home_altitude = altitude;
+                has_home = true;
+            }
+
+            frame[i] = 0;
+
+            if (has_home) {
+                // formule haversine
+                double dlong = fabs(longitude - home_longitude) * DEG2RAD;
+                double dlat = fabs(latitude - home_latitude) * DEG2RAD;
+                double a = pow(sin(dlat / 2.0), 2) + cos(home_latitude * DEG2RAD) * cos(latitude * DEG2RAD) * pow(sin(dlong / 2.0), 2);
+                double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+                double d = 6371000.0 * c;
+
+                // altitude
+                double delta_alt = fabs(altitude - home_altitude);
+                double dist = sqrt(pow(d, 2) + pow(delta_alt, 2));
+                frame[i] = (int64_t)(dist * 100.0);
+            }
+        } else if (predictor[i] == FLIGHT_LOG_FIELD_PREDICTOR_INC) {
             frame[i] = skippedFrames + 1;
 
             if (previous)
                 frame[i] += previous[i];
 
-            i++;
         } else {
             switch (encoding[i]) {
                 case FLIGHT_LOG_FIELD_ENCODING_SIGNED_VB:
@@ -751,8 +818,8 @@ static void parseFrame(flightLog_t *log, mmapStream_t *stream, uint8_t frameType
 
             frame[i] = value;
 
-            i++;
         }
+        i++;
     }
 
     streamByteAlign(stream);

@@ -81,6 +81,7 @@ typedef struct gpsGFieldIndexes_t {
     int GPS_altitude;
     int GPS_speed;
     int GPS_ground_course;
+    int distance_to_home;
 } gpsGFieldIndexes_t;
 
 typedef struct gpsHFieldIndexes_t {
@@ -100,6 +101,7 @@ typedef struct mainFieldIndexes_t {
     int pid[3][3]; //First dimension is [P, I, D], second dimension is axis
 
     int rcCommand[4];
+    int Throttle;
 
     int vbatLatest, amperageLatest;
     int magADC[3];

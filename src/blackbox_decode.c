@@ -49,7 +49,7 @@ typedef struct decodeOptions_t {
     bool overrideSimCurrentMeterOffset, overrideSimCurrentMeterScale;
     int16_t simCurrentMeterOffset, simCurrentMeterScale;
 
-    Unit unitGPSSpeed, unitFrameTime, unitVbat, unitAmperage, unitHeight, unitAcceleration, unitRotation, unitFlags, unitRssi;
+    Unit unitGPSSpeed, unitFrameTime, unitVbat, unitAmperage, unitHeight, unitAcceleration, unitRotation, unitFlags, unitRssi, unitMotor, unitDistance;
 } decodeOptions_t;
 
 decodeOptions_t options = {
@@ -76,7 +76,9 @@ decodeOptions_t options = {
     .unitAcceleration = UNIT_RAW,
     .unitRotation = UNIT_RAW,
     .unitFlags = UNIT_FLAGS,
-    .unitRssi = UNIT_PERCENT
+    .unitRssi = UNIT_PERCENT,
+    .unitMotor = UNIT_RAW,
+    .unitDistance = UNIT_METERS
 };
 
 //We'll use field names to identify GPS field units so the values can be formatted for display
@@ -85,7 +87,8 @@ typedef enum {
     GPS_FIELD_TYPE_DEGREES_TIMES_10, // for headings
     GPS_FIELD_TYPE_COORDINATE_DEGREES_TIMES_10000000,
     GPS_FIELD_TYPE_METERS_PER_SECOND_TIMES_100,
-    GPS_FIELD_TYPE_METERS
+    GPS_FIELD_TYPE_METERS,
+    GPS_FIELD_TYPE_DISTANCE
 } GPSFieldType;
 
 static GPSFieldType gpsFieldTypes[FLIGHT_LOG_MAX_FIELDS];
@@ -304,7 +307,39 @@ bool fprintfMainFieldInUnit(flightLog_t *log, FILE *file, int fieldIndex, int64_
                 fprintf(file, "%3u", (uint32_t)fieldValue * 100 / 1024);
                 ret = true;
             }
+            else
+            {
+                for (int i = 0; i < FLIGHT_LOG_MAX_MOTORS; i++)
+                {
+                    if (fieldIndex == log->mainFieldIndexes.motor[i])
+                    {
+                        int percent;
+                        if (fieldValue <= log->sysConfig.motorOutputLow)
+                        {
+                            percent = 0;
+                        }
+                        else if (fieldValue >= log->sysConfig.motorOutputHigh)
+                        {
+                            percent = 100;
+                        }
+                        else
+                        {
+                            int64_t a = log->sysConfig.motorOutputHigh - log->sysConfig.motorOutputLow;
+                            int64_t b = fieldValue - log->sysConfig.motorOutputLow;
+                            percent = b * 100 / a;
+                        }
+                        fprintf(file, "%3u", percent);
+                        ret = true;
+                    }
+                }
+            }
+            if (!ret)
+            {
+                fprintf(file, "%3u", (uint32_t)fieldValue);
+                ret = true;
+            }
         break;
+
         default:
         break;
     }
@@ -501,9 +536,11 @@ void fprintfGPSFields(FILE *file, uint64_t fieldvalue, int i, bool unitName)
         char *sign = ((fieldvalue < 0) && (degrees == 0)) ? negSign : noSign;
         fprintf(file, "%s%d.%07u", sign, degrees, fracDegrees);
         break;
+
     case GPS_FIELD_TYPE_DEGREES_TIMES_10:
         fprintf(file, "%" PRId64 ".%01u", fieldvalue / 10, (unsigned)(llabs(fieldvalue) % 10));
         break;
+
     case GPS_FIELD_TYPE_METERS_PER_SECOND_TIMES_100:
         if (options.unitGPSSpeed == UNIT_RAW) {
             fprintf(file, "%" PRId64, fieldvalue);
@@ -518,9 +555,23 @@ void fprintfGPSFields(FILE *file, uint64_t fieldvalue, int i, bool unitName)
             fprintf(file, " %s", UNIT_NAME[options.unitGPSSpeed]);
         }
         break;
+
     case GPS_FIELD_TYPE_METERS:
         fprintf(file, "%" PRId64, fieldvalue);
         break;
+
+    case GPS_FIELD_TYPE_DISTANCE:
+        if (options.unitDistance == UNIT_METERS) {
+            fprintf(file, "%.1f", fieldvalue / 100.0);
+        }
+        else if (options.unitDistance == UNIT_CENTIMETERS) {
+            fprintf(file, "%" PRId64, fieldvalue);
+        }
+        if (unitName) {
+            fprintf(file, " %s", UNIT_NAME[options.unitDistance]);
+        }
+        break;
+
     case GPS_FIELD_TYPE_INTEGER:
     default:
         fprintf(file, "%" PRId64, fieldvalue);
@@ -885,6 +936,8 @@ void identifyGPSFields(flightLog_t *log)
             gpsFieldTypes[i] = GPS_FIELD_TYPE_METERS_PER_SECOND_TIMES_100;
         } else if (strcmp(fieldName, "GPS_ground_course") == 0) {
             gpsFieldTypes[i] = GPS_FIELD_TYPE_DEGREES_TIMES_10;
+        } else if (strcmp(fieldName, "Distance") == 0) {
+            gpsFieldTypes[i] = GPS_FIELD_TYPE_DISTANCE;
         } else {
             gpsFieldTypes[i] = GPS_FIELD_TYPE_INTEGER;
         }
@@ -907,6 +960,12 @@ void applyFieldUnits(flightLog_t *log)
         memset(mainFieldUnit, 0, sizeof(mainFieldUnit));
         memset(gpsGFieldUnit, 0, sizeof(gpsGFieldUnit));
         memset(slowFieldUnit, 0, sizeof(slowFieldUnit));
+
+        for (int i = 0; i < FLIGHT_LOG_MAX_MOTORS; i++) {
+            if (log->mainFieldIndexes.motor[i] > -1) {
+                mainFieldUnit[log->mainFieldIndexes.motor[i]] = options.unitMotor;
+            }
+        }
     
         if (log->mainFieldIndexes.vbatLatest > -1) {
             mainFieldUnit[log->mainFieldIndexes.vbatLatest] = options.unitVbat;
@@ -928,10 +987,6 @@ void applyFieldUnits(flightLog_t *log)
             mainFieldUnit[log->mainFieldIndexes.time] = options.unitFrameTime;
         }
 
-        if (log->gpsFieldIndexes.GPS_speed > -1) {
-            gpsGFieldUnit[log->gpsFieldIndexes.GPS_speed] = options.unitGPSSpeed;
-        }
-
         for (int i = 0; i < 3; i++) {
             if (log->mainFieldIndexes.accSmooth[i] > -1) {
                 mainFieldUnit[log->mainFieldIndexes.accSmooth[i]] = options.unitAcceleration;
@@ -940,6 +995,19 @@ void applyFieldUnits(flightLog_t *log)
             if (log->mainFieldIndexes.gyroADC[i] > -1) {
                 mainFieldUnit[log->mainFieldIndexes.gyroADC[i]] = options.unitRotation;
             }
+        }
+
+        if (log->mainFieldIndexes.Throttle > -1) {
+            mainFieldUnit[log->mainFieldIndexes.Throttle] = UNIT_PERCENT;
+        }
+
+        // GPS frame fields:
+        if (log->gpsFieldIndexes.GPS_speed > -1) {
+            gpsGFieldUnit[log->gpsFieldIndexes.GPS_speed] = options.unitGPSSpeed;
+        }
+
+        if (log->gpsFieldIndexes.distance_to_home > -1) {
+            gpsGFieldUnit[log->gpsFieldIndexes.distance_to_home] = options.unitDistance;
         }
 
         // Slow frame fields:
@@ -1323,6 +1391,7 @@ void printUsage(const char *argv0)
         "   --unit-acceleration <u>  Acceleration unit (raw|g|m/s2), default is raw\n"
         "   --unit-gps-speed <unit>  GPS speed unit (mps|kph|mph), default is mps (meters per second)\n"
         "   --unit-vbat <unit>       Vbat unit (raw|mV|V), default is V (volts)\n"
+        "   --unit-motor <unit>      Motor output unit (raw|percent), default is raw"
         "\n"
         "   --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately\n"
         "   --kml                    Export kml file, will activate --merge-gps\n"
@@ -1374,6 +1443,7 @@ void parseCommandlineOptions(int argc, char **argv)
         SETTING_UNIT_ACCELERATION,
         SETTING_UNIT_FRAME_TIME,
         SETTING_UNIT_FLAGS,
+        SETTING_UNIT_MOTOR,
         SETTING_KML_INFOS,
         SETTING_KML_MINIMUMS,
         SETTING_KML_MAXIMUMS
@@ -1382,35 +1452,36 @@ void parseCommandlineOptions(int argc, char **argv)
     while (1)
     {
         static struct option long_options[] = {
-            {"help", no_argument, &options.help, 1},
-            {"raw", no_argument, &options.raw, 1},
-            {"debug", no_argument, &options.debug, 1},
-            {"limits", no_argument, &options.limits, 1},
-            {"stdout", no_argument, &options.toStdout, 1},
+            { "help", no_argument, &options.help, 1},
+            { "raw", no_argument, &options.raw, 1},
+            { "debug", no_argument, &options.debug, 1},
+            { "limits", no_argument, &options.limits, 1},
+            { "stdout", no_argument, &options.toStdout, 1},
             { "merge-gps", no_argument, &options.mergeGPS, 1 },
             { "datetime", no_argument, &options.datetime, 1 },
-            {"kml", no_argument, &options.kml, 1 },
-            {"kml-infos", required_argument, 0, SETTING_KML_INFOS},
-            {"kml-track-modes", no_argument, &options.kmlTrackModes, 1},
-            {"kml-min", required_argument, 0, SETTING_KML_MINIMUMS },
-            {"kml-max", required_argument, 0, SETTING_KML_MAXIMUMS },
-            {"simulate-imu", no_argument, &options.simulateIMU, 1},
-            {"simulate-current-meter", no_argument, &options.simulateCurrentMeter, 1},
-            {"imu-ignore-mag", no_argument, &options.imuIgnoreMag, 1},
-            {"sim-current-meter-scale", required_argument, 0, SETTING_CURRENT_METER_SCALE},
-            {"sim-current-meter-offset", required_argument, 0, SETTING_CURRENT_METER_OFFSET},
-            {"declination", required_argument, 0, SETTING_DECLINATION},
-            {"declination-dec", required_argument, 0, SETTING_DECLINATION_DECIMAL},
-            {"prefix", required_argument, 0, SETTING_PREFIX},
-            {"index", required_argument, 0, SETTING_INDEX},
-            {"unit-gps-speed", required_argument, 0, SETTING_UNIT_GPS_SPEED},
-            {"unit-vbat", required_argument, 0, SETTING_UNIT_VBAT},
-            {"unit-amperage", required_argument, 0, SETTING_UNIT_AMPERAGE},
-            {"unit-height", required_argument, 0, SETTING_UNIT_HEIGHT},
-            {"unit-rotation", required_argument, 0, SETTING_UNIT_ROTATION},
-            {"unit-acceleration", required_argument, 0, SETTING_UNIT_ACCELERATION},
-            {"unit-frame-time", required_argument, 0, SETTING_UNIT_FRAME_TIME},
-            {"unit-flags", required_argument, 0, SETTING_UNIT_FLAGS},
+            { "kml", no_argument, &options.kml, 1 },
+            { "kml-infos", required_argument, 0, SETTING_KML_INFOS},
+            { "kml-track-modes", no_argument, &options.kmlTrackModes, 1},
+            { "kml-min", required_argument, 0, SETTING_KML_MINIMUMS },
+            { "kml-max", required_argument, 0, SETTING_KML_MAXIMUMS },
+            { "simulate-imu", no_argument, &options.simulateIMU, 1},
+            { "simulate-current-meter", no_argument, &options.simulateCurrentMeter, 1},
+            { "imu-ignore-mag", no_argument, &options.imuIgnoreMag, 1},
+            { "sim-current-meter-scale", required_argument, 0, SETTING_CURRENT_METER_SCALE},
+            { "sim-current-meter-offset", required_argument, 0, SETTING_CURRENT_METER_OFFSET},
+            { "declination", required_argument, 0, SETTING_DECLINATION},
+            { "declination-dec", required_argument, 0, SETTING_DECLINATION_DECIMAL},
+            { "prefix", required_argument, 0, SETTING_PREFIX},
+            { "index", required_argument, 0, SETTING_INDEX},
+            { "unit-gps-speed", required_argument, 0, SETTING_UNIT_GPS_SPEED},
+            { "unit-vbat", required_argument, 0, SETTING_UNIT_VBAT},
+            { "unit-amperage", required_argument, 0, SETTING_UNIT_AMPERAGE},
+            { "unit-height", required_argument, 0, SETTING_UNIT_HEIGHT},
+            { "unit-rotation", required_argument, 0, SETTING_UNIT_ROTATION},
+            { "unit-acceleration", required_argument, 0, SETTING_UNIT_ACCELERATION},
+            { "unit-frame-time", required_argument, 0, SETTING_UNIT_FRAME_TIME},
+            { "unit-flags", required_argument, 0, SETTING_UNIT_FLAGS},
+            { "unit-motor", required_argument, 0, SETTING_UNIT_MOTOR},
             {0, 0, 0, 0}
         };
 
@@ -1477,7 +1548,13 @@ void parseCommandlineOptions(int argc, char **argv)
                     fprintf(stderr, "Bad flags unit\n");
                     exit(-1);
                 }
-            break;
+                break;
+            case SETTING_UNIT_MOTOR:
+                if (!unitFromName(optarg, &options.unitMotor)) {
+                    fprintf(stderr, "Bad flags unit\n");
+                    exit(-1);
+                }
+                break;
             case SETTING_DECLINATION:
                 imuSetMagneticDeclination(parseDegreesMinutes(optarg));
             break;
