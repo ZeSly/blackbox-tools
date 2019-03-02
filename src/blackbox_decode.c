@@ -650,15 +650,13 @@ void fprintfSlowFrameFields(flightLog_t *log, FILE* file,int64_t fieldValue, int
         }
 
         fprintf(file, "%s", buffer);
-    }
-    else if (i == log->slowFieldIndexes.failsafePhase && options.unitFlags == UNIT_FLAGS) {
+    } else if (i == log->slowFieldIndexes.failsafePhase && options.unitFlags == UNIT_FLAGS) {
         flightlogFailsafePhaseToString(fieldValue, buffer, BUFFER_LEN);
 
         fprintf(file, "%s", buffer);
     } else if (log->frameDefs['S'].fieldSigned[i]) {
-        fprintf(csvFile, "%" PRId64, (uint64_t)frame[i]);
-    }
-    else {
+        fprintf(csvFile, "%" PRId64, (uint64_t)fieldValue);
+    } else {
         //Print raw
         fprintf(file, "%" PRIu64, (uint64_t)fieldValue);
     }
