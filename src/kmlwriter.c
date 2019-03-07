@@ -86,6 +86,13 @@ bool kmlSetMinimums(char *optarg)
                 found = true;
             }
         }
+
+        if (!found)
+        {
+            extended_data[nb_extended_data].placeFlags |= PLACE_MIN;
+            extended_data[nb_extended_data++].name = tok;
+        }
+
         tok = strtok(NULL, ",");
     }
 
@@ -112,6 +119,12 @@ bool kmlSetMaximums(char *optarg)
                 found = true;
             }
         }
+        if (!found)
+        {
+            extended_data[nb_extended_data].placeFlags |= PLACE_MAX;
+            extended_data[nb_extended_data++].name = tok;
+        }
+
         tok = strtok(NULL, ",");
     }
 
@@ -128,6 +141,12 @@ bool kmlSetColor(char * optarg)
             color_extended_data = e;
             found = true;
         }
+    }
+
+    if (!found)
+    {
+        color_extended_data = nb_extended_data;
+        extended_data[nb_extended_data++].name = optarg;
     }
 
     return found;
