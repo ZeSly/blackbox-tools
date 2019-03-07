@@ -29,7 +29,7 @@ infos inside
 Use the `--help` option to show more details:
 
 ```text
-Blackbox flight log decoder by Sylvain Girard, based on the work of Nicholas Sherlock (Jan  1 2019 16:20:35)
+Blackbox flight log decoder by Sylvain Girard, based on the work of Nicholas Sherlock (Mar  7 2019 01:33:45)
 
 Usage:
      blackbox_decode [options] <input logs>
@@ -49,6 +49,7 @@ Options:
    --unit-acceleration <u>  Acceleration unit (raw|g|m/s2), default is raw
    --unit-gps-speed <unit>  GPS speed unit (mps|kph|mph), default is mps (meters per second)
    --unit-vbat <unit>       Vbat unit (raw|mV|V), default is V (volts)
+   --unit-motor <unit>      Motor output unit (raw|percent), default is raw
 
    --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately
    --kml                    Export kml file, will activate --merge-gps
@@ -56,6 +57,7 @@ Options:
    --kml-track-modes        Generate different track for each active RC modes along the flight
    --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos
    --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos
+   --kml-color <info>       Add a track with colors corresponding to <info> value.
 
    --simulate-current-meter Simulate a virtual current meter using throttle data
    --sim-current-meter-scale   Override the FC's settings for the current meter simulation

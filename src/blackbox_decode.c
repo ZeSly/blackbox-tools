@@ -1391,7 +1391,7 @@ void printUsage(const char *argv0)
         "   --unit-acceleration <u>  Acceleration unit (raw|g|m/s2), default is raw\n"
         "   --unit-gps-speed <unit>  GPS speed unit (mps|kph|mph), default is mps (meters per second)\n"
         "   --unit-vbat <unit>       Vbat unit (raw|mV|V), default is V (volts)\n"
-        "   --unit-motor <unit>      Motor output unit (raw|percent), default is raw"
+        "   --unit-motor <unit>      Motor output unit (raw|percent), default is raw\n"
         "\n"
         "   --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately\n"
         "   --kml                    Export kml file, will activate --merge-gps\n"
@@ -1399,6 +1399,7 @@ void printUsage(const char *argv0)
         "   --kml-track-modes        Generate different track for each active RC modes along the flight\n"
         "   --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos\n"
         "   --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos\n"
+        "   --kml-color <info>       Add a track with colors corresponding to <info> value.\n"
         "\n"
         "   --simulate-current-meter Simulate a virtual current meter using throttle data\n"
         "   --sim-current-meter-scale   Override the FC's settings for the current meter simulation\n"
@@ -1446,7 +1447,8 @@ void parseCommandlineOptions(int argc, char **argv)
         SETTING_UNIT_MOTOR,
         SETTING_KML_INFOS,
         SETTING_KML_MINIMUMS,
-        SETTING_KML_MAXIMUMS
+        SETTING_KML_MAXIMUMS,
+        SETTING_KML_COLOR
     };
 
     while (1)
@@ -1464,6 +1466,7 @@ void parseCommandlineOptions(int argc, char **argv)
             { "kml-track-modes", no_argument, &options.kmlTrackModes, 1},
             { "kml-min", required_argument, 0, SETTING_KML_MINIMUMS },
             { "kml-max", required_argument, 0, SETTING_KML_MAXIMUMS },
+            { "kml-color", required_argument, 0, SETTING_KML_COLOR },
             { "simulate-imu", no_argument, &options.simulateIMU, 1},
             { "simulate-current-meter", no_argument, &options.simulateCurrentMeter, 1},
             { "imu-ignore-mag", no_argument, &options.imuIgnoreMag, 1},
@@ -1578,6 +1581,9 @@ void parseCommandlineOptions(int argc, char **argv)
             case SETTING_KML_MAXIMUMS:
                 kmlSetMaximums(optarg);
             break;
+            case SETTING_KML_COLOR:
+                kmlSetColor(optarg);
+                break;
             case '\0':
                 //Longopt which has set a flag
             break;

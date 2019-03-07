@@ -23,6 +23,7 @@ typedef struct kmlWriter_t {
 void kmlSetInfos(char *optarg);
 bool kmlSetMinimums(char *optarg);
 bool kmlSetMaximums(char *optarg);
+bool kmlSetColor(char *optarg);
 
 void kmlWriterAddPoint(kmlWriter_t *kml, flightLog_t *log, int64_t time, int64_t *frame, int64_t *bufferedMainFrame, int64_t *bufferedSlowFrame);
 kmlWriter_t* kmlWriterCreate(const char *filename, bool trackModes);

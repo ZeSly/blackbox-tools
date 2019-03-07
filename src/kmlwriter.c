@@ -49,6 +49,7 @@ static extendedData_t extended_data[NB_EXTENDED_DATA_MAX];
 static int nb_extended_data = 0;
 static int change_track_data = -1;
 static int nb_change_track = 0;
+static int color_extended_data = -1;
 
 static uint8_t altitude_place_flags = 0;
 
@@ -112,6 +113,21 @@ bool kmlSetMaximums(char *optarg)
             }
         }
         tok = strtok(NULL, ",");
+    }
+
+    return found;
+}
+
+bool kmlSetColor(char * optarg)
+{
+    bool found = false;
+    for (int e = 0; e < nb_extended_data && !found; e++)
+    {
+        if (strcmp(optarg, extended_data[e].name) == 0)
+        {
+            color_extended_data = e;
+            found = true;
+        }
     }
 
     return found;
@@ -411,12 +427,19 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     fputs("<Document>\n" , kml->file);
 
     fprintf(kml->file, "\t<name>Blackbox flight log %s</name>\n", kml->filename);
+    fprintf(kml->file, "\t<visibility>1</visibility>\n");
+    fprintf(kml->file, "\t<open>1</open>\n");
     fprintf(kml->file, "\t<snippet>Log started %s</snippet>\n", datetime);
 
     kmlWriteStyles(kml);
 
-    fprintf(kml->file, "\t<Folder>\n");
+    fprintf(kml->file, "\t<Folder id =\"track\">\n");
     fprintf(kml->file, "\t\t<name>Blackbox flight log Tracks</name>\n");
+    fprintf(kml->file, "\t\t<visibility>1</visibility>\n");
+    fprintf(kml->file, "\t\t<open>1</open>\n");
+    fprintf(kml->file, "\t\t<Snippet></Snippet>\n");
+    fprintf(kml->file, "\t\t<description><![CDATA[&nbsp;]]></description>\n");
+
 
     int16_t min_altitude_value = INT16_MAX;
     int16_t max_altitude_value = INT16_MIN;
@@ -440,7 +463,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     while ( coordTrak != NULL)
     {
         fprintf(kml->file, "\t\t<Placemark>\n");
-        fprintf(kml->file, "\t\t\t<name>track %u</name>\n", track_num++);
+        fprintf(kml->file, "\t\t\t<name>Track %u</name>\n", track_num++);
         fprintf(kml->file, "\t\t\t<styleUrl>#multiTrack</styleUrl>\n");
         fprintf(kml->file, "\t\t\t<gx:Track>\n");
         fprintf(kml->file, "\t\t\t\t<altitudeMode>absolute</altitudeMode>\n");
@@ -505,11 +528,11 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
                         kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e);
                         fputs("</gx:value>\n", kml->file);
 
-                        if (extended_data[e].placeFlags & PLACE_MAX && coord->extended_data[e] > placeValue[e].max) {
+                        if (/*extended_data[e].placeFlags & PLACE_MAX && */coord->extended_data[e] > placeValue[e].max) {
                             placeValue[e].max = coord->extended_data[e];
                             placeCoordMax[e] = coord;
                         }
-                        if (extended_data[e].placeFlags & PLACE_MIN && coord->extended_data[e] < placeValue[e].min) {
+                        if (/*extended_data[e].placeFlags & PLACE_MIN && */coord->extended_data[e] < placeValue[e].min) {
                             placeValue[e].min = coord->extended_data[e];
                             placeCoordMin[e] = coord;
                         }
@@ -562,8 +585,110 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         }
     }
 
+    int trkpt;
+    coordList_t *coordPrev;
+    if (color_extended_data >= 0)
+    {
+        uint64_t min = placeCoordMin[color_extended_data]->extended_data[color_extended_data];
+        uint64_t max = placeCoordMax[color_extended_data]->extended_data[color_extended_data];
+        uint64_t delta = max - min;
+        uint64_t half_delta = delta / 2;
+
+        fprintf(kml->file, "\t<Folder id=\"colored_track\">\n");
+        fprintf(kml->file, "\t\t<name>Colored %s</name>\n", extended_data[color_extended_data].name);
+        fprintf(kml->file, "\t\t<visibility>1</visibility>\n");
+        fprintf(kml->file, "\t\t<open>0</open>\n");
+        fprintf(kml->file, "\t\t<Snippet></Snippet>\n");
+        fprintf(kml->file, "\t\t<description><![CDATA[&nbsp;]]></description>\n");
+        trkpt = 1;
+        coordPrev = coordList;
+        for (coordList_t *coord = coordList->next; coord != NULL; coord = coord->next)
+        {
+            uint64_t value = coord->extended_data[color_extended_data];
+            value = value - min;
+            if (min == 0)
+            {
+                value = delta - value;
+            }
+            int red, green;
+            if (value < half_delta)
+            {
+                green = value * 255000 / half_delta / 1000;
+                red = 255;
+            }
+            else
+            {
+                red = (delta - value) * 255000 / half_delta / 1000;
+                green = 255;
+            }
+
+            fprintf(kml->file, "\t\t<Placemark>\n");
+            fprintf(kml->file, "\t\t\t<name>trkpt %u</name>\n", trkpt++);
+            fprintf(kml->file, "\t\t\t<TimeStamp>\n");
+            fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
+                log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
+                coord->hours, coord->mins, coord->secs, coord->frac);
+            fprintf(kml->file, "\t\t\t</TimeStamp>\n");
+            fprintf(kml->file, "\t\t\t<Style>\n");
+            fprintf(kml->file, "\t\t\t\t<LineStyle>\n");
+            fprintf(kml->file, "\t\t\t\t\t<color>FF00%02X%02X</color>\n", green, red);
+            fprintf(kml->file, "\t\t\t\t\t<width>2</width>\n");
+            fprintf(kml->file, "\t\t\t\t</LineStyle>\n");
+            fprintf(kml->file, "\t\t\t</Style>\n");
+            fprintf(kml->file, "\t\t\t<LineString>\n");
+            fprintf(kml->file, "\t\t\t\t<tessellate>0</tessellate>\n");
+            fprintf(kml->file, "\t\t\t\t<altitudeMode>absolute</altitudeMode>\n");
+            fprintf(kml->file, "\t\t\t\t<coordinates>");
+            kmlWriteCoordinates(kml, coordPrev->lat, coordPrev->lon, coordPrev->altitude, ',');
+            fputs(" ", kml->file);
+            kmlWriteCoordinates(kml, coord->lat, coord->lon, coord->altitude, ',');
+            fprintf(kml->file, "</coordinates>\n");
+            fprintf(kml->file, "\t\t\t</LineString>\n");
+            fprintf(kml->file, "\t\t</Placemark>\n");
+            coordPrev = coordPrev->next;
+        }
+        fprintf(kml->file, "\t</Folder>\n");
+    }
+
+    fprintf(kml->file, "\t<Folder id=\"shadow\">\n");
+    fprintf(kml->file, "\t\t<name>Shadow</name>\n");
+    fprintf(kml->file, "\t\t<visibility>1</visibility>\n");
+    fprintf(kml->file, "\t\t<open>0</open>\n");
+    fprintf(kml->file, "\t\t<Snippet></Snippet>\n");
+    fprintf(kml->file, "\t\t<description><![CDATA[&nbsp;]]></description>\n");
+    trkpt = 1;
+    coordPrev = coordList;
+    for (coordList_t *coord = coordList->next; coord != NULL; coord = coord->next)
+    {
+        fprintf(kml->file, "\t\t<Placemark>\n");
+        fprintf(kml->file, "\t\t\t<name>trkpt %u</name>\n", trkpt++);
+        fprintf(kml->file, "\t\t\t<TimeStamp>\n");
+        fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
+            log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
+            coord->hours, coord->mins, coord->secs, coord->frac);
+        fprintf(kml->file, "\t\t\t</TimeStamp>\n");
+        fprintf(kml->file, "\t\t\t<Style>\n");
+        fprintf(kml->file, "\t\t\t\t<LineStyle>\n");
+        fprintf(kml->file, "\t\t\t\t\t<color>99000000</color>\n");
+        fprintf(kml->file, "\t\t\t\t\t<width>8</width>\n");
+        fprintf(kml->file, "\t\t\t\t</LineStyle>\n");
+        fprintf(kml->file, "\t\t\t</Style>\n");
+        fprintf(kml->file, "\t\t\t<LineString>\n");
+        fprintf(kml->file, "\t\t\t\t<tessellate>0</tessellate>\n");
+        fprintf(kml->file, "\t\t\t\t<altitudeMode>clampToGround</altitudeMode>\n");
+        fprintf(kml->file, "\t\t\t\t<coordinates>");
+        kmlWriteCoordinates(kml, coordPrev->lat, coordPrev->lon, coordPrev->altitude, ',');
+        fputs(" ", kml->file);
+        kmlWriteCoordinates(kml, coord->lat, coord->lon, coord->altitude, ',');
+        fprintf(kml->file, "</coordinates>\n");
+        fprintf(kml->file, "\t\t\t</LineString>\n");
+        fprintf(kml->file, "\t\t</Placemark>\n");
+        coordPrev = coordPrev->next;
+    }
+    fprintf(kml->file, "\t</Folder>\n");
+
     clearCoordList();
-    fprintf(kml->file, "</Folder>\n");
+    fprintf(kml->file, "\t</Folder>\n");
 
     if (kml->state != KMLWRITER_STATE_EMPTY) {
         fprintf(kml->file, KML_FILE_TRAILER);
