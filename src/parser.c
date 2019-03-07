@@ -501,9 +501,11 @@ static void parseHeaderLine(flightLog_t *log, mmapStream_t *stream)
 		log->sysConfig.motorOutputHigh = motorOutputs[1];
     } else if (strcmp(fieldName, "Firmware revision") == 0) {
 
-        if (strncmp(fieldValue, "Betaflight", 10) == 0)
+        if (strncmp(fieldValue, "Betaflight", 10) == 0) {
             log->sysConfig.firmwareRevison = FIRMWARE_REVISON_BETAFLIGHT;
-        else if(strncmp(fieldValue, "INAV", 4) == 0) {
+            log->sysConfig.vbatType = INAV_V2;
+        }
+        else if (strncmp(fieldValue, "INAV", 4) == 0) {
             long major=0,minor=0,micro=0;
             char *ptr = fieldValue+5; // "INAV "
             major = strtol(ptr, &ptr, 10);
@@ -669,18 +671,18 @@ static void parseFrame(flightLog_t *log, mmapStream_t *stream, uint8_t frameType
         if (strcmp(frameDef->fieldName[i], "Throttle") == 0)
         {
             int64_t rcThrottle = frame[log->mainFieldIndexes.rcCommand[3]];
-            if (rcThrottle <= log->sysConfig.motorOutputLow)
+            if (rcThrottle <= log->sysConfig.minthrottle)
             {
                 frame[i] = 0;
             }
-            else if (rcThrottle >= log->sysConfig.motorOutputHigh)
+            else if (rcThrottle >= log->sysConfig.maxthrottle)
             {
                 frame[i] = 100;
             }
             else
             {
-                int64_t a = log->sysConfig.motorOutputHigh - log->sysConfig.motorOutputLow;
-                int64_t b = rcThrottle - log->sysConfig.motorOutputLow;
+                int64_t a = log->sysConfig.maxthrottle - log->sysConfig.minthrottle;
+                int64_t b = rcThrottle - log->sysConfig.minthrottle;
                 frame[i] = b * 100 / a;
             }
         } else if (strcmp(frameDef->fieldName[i], "Distance") == 0) {
@@ -814,6 +816,10 @@ static void parseFrame(flightLog_t *log, mmapStream_t *stream, uint8_t frameType
                 } else {
                     value = (uint32_t) value;
                 }
+            }
+
+            if (log->sysConfig.firmwareRevison == FIRMWARE_REVISON_BETAFLIGHT && strcmp(frameDef->fieldName[i], "GPS_altitude") == 0) {
+                value /= 10;
             }
 
             frame[i] = value;
