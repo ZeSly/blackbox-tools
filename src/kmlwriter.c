@@ -170,7 +170,7 @@ kmlWriter_t* kmlWriterCreate(const char *filename, bool trackModes)
 {
     kmlWriter_t *result = malloc(sizeof(*result));
 
-    result->filename = strdup(filename);
+    result->filename = _strdup(filename);
     result->state = KMLWRITER_STATE_EMPTY;
     result->file = NULL;
     result->trackModes = trackModes;

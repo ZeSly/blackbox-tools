@@ -1751,19 +1751,19 @@ int main(int argc, char **argv)
     fieldNames = malloc(sizeof(*fieldNames) * combinedFieldCount);
 
     for (int i = 0; i < flightLog->frameDefs['I'].fieldCount; i++) {
-        fieldNames[i] = strdup(flightLog->frameDefs['I'].fieldName[i]);
+        fieldNames[i] = _strdup(flightLog->frameDefs['I'].fieldName[i]);
     }
 
     // And add our synthetic field names
-    fieldNames[fieldMeta.roll] = strdup("roll");
-    fieldNames[fieldMeta.pitch] = strdup("pitch");
-    fieldNames[fieldMeta.heading] = strdup("heading");
-    fieldNames[fieldMeta.axisPIDSum[0]] = strdup("axisPID[0]");
-    fieldNames[fieldMeta.axisPIDSum[1]] = strdup("axisPID[1]");
-    fieldNames[fieldMeta.axisPIDSum[2]] = strdup("axisPID[2]");
+    fieldNames[fieldMeta.roll] = _strdup("roll");
+    fieldNames[fieldMeta.pitch] = _strdup("pitch");
+    fieldNames[fieldMeta.heading] = _strdup("heading");
+    fieldNames[fieldMeta.axisPIDSum[0]] = _strdup("axisPID[0]");
+    fieldNames[fieldMeta.axisPIDSum[1]] = _strdup("axisPID[1]");
+    fieldNames[fieldMeta.axisPIDSum[2]] = _strdup("axisPID[2]");
 
     if (fieldMeta.cumulativeCurrent > -1) {
-        fieldNames[fieldMeta.cumulativeCurrent] = strdup("cumulativeCurrent");
+        fieldNames[fieldMeta.cumulativeCurrent] = _strdup("cumulativeCurrent");
     }
 
     // Create the pre-allocated array of frames that we'll decode into

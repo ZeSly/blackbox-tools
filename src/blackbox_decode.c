@@ -37,7 +37,7 @@
 #define MIN_GPS_SATELLITES 5
 
 typedef struct decodeOptions_t {
-    int help, raw, limits, debug, toStdout;
+    int help, version, raw, limits, debug, toStdout;
     int logNumber;
     int simulateIMU, imuIgnoreMag;
     int simulateCurrentMeter;
@@ -53,7 +53,7 @@ typedef struct decodeOptions_t {
 } decodeOptions_t;
 
 decodeOptions_t options = {
-    .help = 0, .raw = 0, .limits = 0, .debug = 0, .toStdout = 0,
+    .help = 0, .version = 0, .raw = 0, .limits = 0, .debug = 0, .toStdout = 0,
     .logNumber = -1,
     .simulateIMU = false, .imuIgnoreMag = 0,
     .simulateCurrentMeter = false,
@@ -1378,6 +1378,9 @@ void printUsage(const char *argv0)
         "     %s [options] <input logs>\n\n"
         "Options:\n"
         "   --help                   This page\n"
+#ifdef BLACKBOX_VERSION
+        "   --version                Show blackbox-tool version and build date\n"
+#endif
         "   --index <num>            Choose the log from the file that should be decoded (or omit to decode all)\n"
         "   --limits                 Print the limits and range of each field\n"
         "   --stdout                 Write log to stdout instead of to a file\n"
@@ -1455,6 +1458,7 @@ void parseCommandlineOptions(int argc, char **argv)
     {
         static struct option long_options[] = {
             { "help", no_argument, &options.help, 1},
+            { "version", no_argument, &options.version, 1 },
             { "raw", no_argument, &options.raw, 1},
             { "debug", no_argument, &options.debug, 1},
             { "limits", no_argument, &options.limits, 1},
@@ -1612,6 +1616,18 @@ int main(int argc, char **argv)
     platform_init();
 
     parseCommandlineOptions(argc, argv);
+
+    if (options.help || argc == 1) {
+        printUsage(argv[0]);
+        return -1;
+    }
+
+#ifdef BLACKBOX_VERSION
+    if (options.version || argc == 1) {
+        fprintf(stderr, "v" STR(BLACKBOX_VERSION) " (" __DATE__ " " __TIME__ ")\n\n");
+        return -1;
+    }
+#endif
 
     if (options.help || argc == 1) {
         printUsage(argv[0]);

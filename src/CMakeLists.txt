@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.10)
-project (blackbox_tools VERSION 0.4.4)
+project (blackbox_tools VERSION 0.5.0)
 
 set (COMMON_SRC	parser.c tools.c platform.c stream.c decoders.c units.c blackbox_fielddefs.c)
 set (DECODER_SRC ${COMMON_SRC} blackbox_decode.c gpxwriter.c kmlwriter.c imu.c battery.c stats.c)
@@ -17,6 +17,8 @@ if (WIN32)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
     link_directories(../lib/win32)
 endif(WIN32)
+
+add_definitions(-DBLACKBOX_VERSION=${PROJECT_VERSION})
 
 if (UNIX)
     add_definitions(-D_strdup=strdup)
