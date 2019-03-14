@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.10)
-project (blackbox_tools VERSION 0.5.0)
+project (blackbox-tools VERSION 0.5.0)
 
 set (COMMON_SRC	parser.c tools.c platform.c stream.c decoders.c units.c blackbox_fielddefs.c)
 set (DECODER_SRC ${COMMON_SRC} blackbox_decode.c gpxwriter.c kmlwriter.c imu.c battery.c stats.c)
@@ -18,7 +18,7 @@ if (WIN32)
     link_directories(../lib/win32)
 endif(WIN32)
 
-add_definitions(-DBLACKBOX_VERSION=${PROJECT_VERSION})
+add_definitions(-DBLACKBOX_VERSION=${PROJECT_VERSION}.RC1)
 
 if (UNIX)
     add_definitions(-D_strdup=strdup)
@@ -57,3 +57,24 @@ endif (UNIX)
 
 # add_executable (encoder_testbed ${ENCODER_TESTBED_HEADER} ${ENCODER_TESTBED_SRC})
 # target_include_directories(encoder_testbed PRIVATE ../lib/getopt_mb_uni)
+
+install (TARGETS blackbox_decode DESTINATION bin)
+install (TARGETS blackbox_render DESTINATION bin)
+
+set (CPACK_GENERATOR "DEB" "RPM" "TGZ")
+set (CPACK_PACKAGE_DESCRIPTION "blackbox-tools")
+set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "Blackbox flight data recorder tools for INAV and Betaflight")
+set (CPACK_PACKAGE_VENDOR "ZeSly")
+set (CPACK_PACKAGE_CONTACT "zesly42@@gmail.com")
+set (CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set (CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set (CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set (CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+set (CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}.${PROJECT_VERSION}.RC1")
+set (CPACK_RPM_PACKAGE_REQUIRES "libc6 >= 2.27, libcairo2 >= 1.14, libfreetype6 >= 2.5.3")
+set (CPACK_RPM_PACKAGE_LICENSE "GPLv3")
+set (CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.27), libcairo2 (>= 1.14), libfreetype6 (>= 2.5.3)")
+set (CPACK_DEBIAN_PACKAGE_LICENSE "GPLv3")
+
+include (CPack)
+
