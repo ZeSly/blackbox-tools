@@ -433,7 +433,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     if (!kml)
         return;
 
-    if (kml->state == KMLWRITER_STATE_ERROR)
+    if (kml->state == KMLWRITER_STATE_ERROR || kml->state == KMLWRITER_STATE_EMPTY)
         return;
 
     char datetime[128];
@@ -608,10 +608,15 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     coordList_t *coordPrev;
     if (color_extended_data >= 0)
     {
+        uint64_t first_value = coordList->extended_data[color_extended_data];
         uint64_t min = placeCoordMin[color_extended_data]->extended_data[color_extended_data];
         uint64_t max = placeCoordMax[color_extended_data]->extended_data[color_extended_data];
         uint64_t delta = max - min;
         uint64_t half_delta = delta / 2;
+
+        bool inverted_colors = false;
+        if (first_value - min < max - first_value)
+            inverted_colors = true;
 
         fprintf(kml->file, "\t<Folder id=\"colored_track\">\n");
         fprintf(kml->file, "\t\t<name>Colored %s</name>\n", extended_data[color_extended_data].name);
@@ -625,7 +630,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         {
             uint64_t value = coord->extended_data[color_extended_data];
             value = value - min;
-            if (min == 0)
+            if (inverted_colors)
             {
                 value = delta - value;
             }
