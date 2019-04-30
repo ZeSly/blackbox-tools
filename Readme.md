@@ -159,15 +159,29 @@ The `blackbox_render` tool renders a binary flight log into a series of PNG imag
 video. Please read the section below that most closely matches your operating system for instructions on getting the `libcairo`
 library required to build the `blackbox_render` tool.
 
-#### Ubuntu
+#### Linux Ubuntu
 You can get the tools required for building by entering these commands into the terminal:
 
 ```bash
 sudo apt-get update
-sudo apt-get install make gcc libcairo2-dev
+sudo apt-get install make gcc cmake libcairo2-dev
 ```
 
-Build blackbox_render by running `make obj/blackbox_render` (or build both tools by just running `make`).
+Build the tools in an empty build directory :
+
+```bash
+mkdir build
+cd build
+cmake -G "Unix Makefiles" ../src/
+make
+```
+
+Generate the deb, rpm and tgz installation package :
+
+```bash
+make package
+```
+
 
 #### MacOSX
 The easiest way to build is to install the [Xcode development tool][], then install an environment like [Homebrew][] 
@@ -203,9 +217,14 @@ $ export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/X11/lib/pkgconfig
 [MacPorts]: https://www.macports.org/
 
 #### Windows
-The tools can be built with Visual Studio Express 2013, just open up the solution in the `visual-studio/`
-folder. You'll need to include the .DLL files from `lib/win32` in the same directory as your built
-executable.
+With cmake-gui (www.cmake.org) you can generate a solution for Visual Studio or whatever the IDE you want.
+
+Where is the source code: Select the "src" directory
+
+Where to build the binaries: Select an empty directory where you want the Visual Studio solution to be generated
+
+Click Configure, Generate and then Open Project
+
 
 ## License
 
