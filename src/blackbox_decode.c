@@ -81,16 +81,6 @@ decodeOptions_t options = {
     .unitDistance = UNIT_METERS
 };
 
-//We'll use field names to identify GPS field units so the values can be formatted for display
-typedef enum {
-    GPS_FIELD_TYPE_INTEGER,
-    GPS_FIELD_TYPE_DEGREES_TIMES_10, // for headings
-    GPS_FIELD_TYPE_COORDINATE_DEGREES_TIMES_10000000,
-    GPS_FIELD_TYPE_METERS_PER_SECOND_TIMES_100,
-    GPS_FIELD_TYPE_METERS,
-    GPS_FIELD_TYPE_DISTANCE
-} GPSFieldType;
-
 static GPSFieldType gpsFieldTypes[FLIGHT_LOG_MAX_FIELDS];
 
 static int64_t lastFrameTime;

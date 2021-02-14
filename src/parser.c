@@ -27,6 +27,8 @@
 
 #define LOG_START_MARKER "H Product:Blackbox flight data recorder by Nicholas Sherlock\n"
 
+#define HEADER_MAX_SIZE 2048
+
 //Assume that even in the most woeful logging situation, we won't miss 10 seconds of frames
 #define MAXIMUM_TIME_JUMP_BETWEEN_FRAMES (10 * 1000000)
 
@@ -259,6 +261,8 @@ static void identifyMainFields(flightLog_t *log, flightLogFrameDef_t *frameDef)
             log->mainFieldIndexes.loopIteration = fieldIndex;
         } else if (strcmp(fieldName, "time") == 0) {
             log->mainFieldIndexes.time = fieldIndex;
+        } else if (strcmp(fieldName, "navState") == 0) {
+            log->mainFieldIndexes.navState = fieldIndex;
         } else if (strcmp(fieldName, "Throttle") == 0) {
             log->mainFieldIndexes.Throttle = fieldIndex;
         }
@@ -286,6 +290,8 @@ static void identifyGPSFields(flightLog_t *log, flightLogFrameDef_t *frameDef)
 
         if (strcmp(fieldName, "time") == 0) {
             log->gpsFieldIndexes.time = i;
+        } else if (strcmp(fieldName, "GPS_fixType") == 0) {
+            log->gpsFieldIndexes.GPS_fixType = i;
         } else if (strcmp(fieldName, "GPS_numSat") == 0) {
             log->gpsFieldIndexes.GPS_numSat = i;
         } else if (strcmp(fieldName, "GPS_altitude") == 0)  {
@@ -362,7 +368,7 @@ static void parseHeaderLine(flightLog_t *log, mmapStream_t *stream)
     char *fieldName, *fieldValue;
     const char *lineStart, *lineEnd, *separatorPos;
     int i, c;
-    char valueBuffer[1024];
+    char valueBuffer[HEADER_MAX_SIZE];
     union {
         float f;
         uint32_t u;
@@ -377,7 +383,7 @@ static void parseHeaderLine(flightLog_t *log, mmapStream_t *stream)
     lineStart = stream->pos;
     separatorPos = 0;
 
-    for (i = 0; i < 1024; i++) {
+    for (i = 0; i < HEADER_MAX_SIZE; i++) {
         c = streamReadChar(stream);
 
         if (c == ':' && !separatorPos) {
@@ -1141,7 +1147,7 @@ void flightlogFlightStateToString(flightLog_t *log, uint64_t flightState, char *
 {
     if (log->sysConfig.firmwareType == FIRMWARE_TYPE_CLEANFLIGHT && log->sysConfig.firmwareRevison == FIRMWARE_REVISON_INAV)
     {
-        flightlogDecodeFlagsToString(flightState, FLIGHT_LOG_FLIGHT_STATE_NAME, dest, destLen);
+        flightlogDecodeFlagsToString(flightState, FLIGHT_LOG_FLIGHT_STATE_NAME_INAV, dest, destLen);
     }
     else
     {
@@ -1669,4 +1675,15 @@ void flightLogDestroy(flightLog_t *log)
 
     free(log->private);
     free(log);
+}
+
+bool getHomeCoordinates(flightLog_t *log, double *lat, double *lon)
+{
+    if (log->private->gpsHomeIsValid) {
+        *lat = log->private->gpsHomeHistory[0][log->gpsHomeFieldIndexes.GPS_home[0]] / 1e7;
+        *lon = log->private->gpsHomeHistory[0][log->gpsHomeFieldIndexes.GPS_home[1]] / 1e7;
+    } else {
+        *lat = *lon = 0;
+    }
+    return log->private->gpsHomeIsValid;
 }

@@ -16,7 +16,7 @@
 #define FLIGHT_LOG_FIELD_INDEX_TIME 1
 
 #define FLIGHT_LOG_MAX_MOTORS 8
-#define FLIGHT_LOG_MAX_SERVOS 8
+#define FLIGHT_LOG_MAX_SERVOS 16
 
 typedef enum FirmwareType {
     FIRMWARE_TYPE_UNKNOWN = 0,
@@ -76,6 +76,7 @@ struct flightLogPrivate_t;
  */
 typedef struct gpsGFieldIndexes_t {
     int time;
+    int GPS_fixType;
     int GPS_numSat;
     int GPS_coord[2];
     int GPS_altitude;
@@ -97,6 +98,7 @@ typedef struct slowFieldIndexes_t {
 typedef struct mainFieldIndexes_t {
     int loopIteration;
     int time;
+    int navState;
 
     int pid[3][3]; //First dimension is [P, I, D], second dimension is axis
 
@@ -133,7 +135,6 @@ typedef struct flightLogSysConfig_t {
     uint8_t vbatmaxcellvoltage;
     uint8_t vbatmincellvoltage;
     uint8_t vbatwarningcellvoltage;
-
     int16_t currentMeterOffset, currentMeterScale;
 
     uint16_t vbatref;
@@ -152,7 +153,7 @@ typedef struct flightLogFrameDef_t {
     int fieldCount;
 
     char *fieldName[FLIGHT_LOG_MAX_FIELDS];
-    
+
     int fieldSigned[FLIGHT_LOG_MAX_FIELDS];
     int fieldWidth[FLIGHT_LOG_MAX_FIELDS];
     int predictor[FLIGHT_LOG_MAX_FIELDS];
@@ -200,5 +201,5 @@ void flightlogFailsafePhaseToString(uint8_t failsafePhase, char *dest, int destL
 
 bool flightLogParse(flightLog_t *log, int logIndex, FlightLogMetadataReady onMetadataReady, FlightLogFrameReady onFrameReady, FlightLogEventReady onEvent, bool raw);
 void flightLogDestroy(flightLog_t *log);
-
+bool getHomeCoordinates(flightLog_t *log, double *lat, double *lon);
 #endif
