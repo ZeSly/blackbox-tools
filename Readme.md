@@ -18,9 +18,7 @@ blackbox_decode LOG00001.TXT
 
 That'll decode the log to `LOG00001.01.csv` and print out some statistics about the log. If you're using Windows, you can drag and drop your log files onto `blackbox_decode` and they'll all be decoded. Please note that you shouldn't discard the original ".TXT" file, because it is required as input for other tools like the PNG image renderer.
 
-If your log file contains GPS data then a ".gpx" file will also be produced. This file can be opened in Google Earth
-or some other GPS mapping software for analysis. You can also produce a ".kml" file for Google Earth with additionnal
-infos inside. This feature is experimental.
+If your log file contains GPS data then a ".gpx" file will also be produced. This file can be opened in Google Earth or some other GPS mapping software for analysis. You can also produce a ".kml" file for Google Earth with additionnal infos inside.
 
 Use the `--help` option to show more details:
 
@@ -36,7 +34,6 @@ Options:
    --limits                 Print the limits and range of each field
    --stdout                 Write log to stdout instead of to a file
    --datetime               Add a dateTime column with UTC date time
-   --dashware               Add some relevant fields for overlay using DashWare (forces --datetime and --merge-gps)
    --unit-amperage <unit>   Current meter unit (raw|mA|A), default is A (amps)
    --unit-flags <unit>      State flags unit (raw|flags), default is flags
    --unit-frame-time <unit> Frame timestamp unit (us|s), default is us (microseconds)
