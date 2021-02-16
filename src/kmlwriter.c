@@ -482,7 +482,16 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
     while ( coordTrak != NULL)
     {
         fprintf(kml->file, "\t\t<Placemark>\n");
-        fprintf(kml->file, "\t\t\t<name>Track %u</name>\n", track_num++);
+        if (kml->trackModes)
+        {
+            fputs("\t\t\t<name>", kml->file);
+            kmlWriteExtendedDataValue(kml, log, coordTrak->extended_data[change_track_data], change_track_data);
+            fputs("</name>\n", kml->file);
+        }
+        else
+        {
+            fprintf(kml->file, "\t\t\t<name>Track %u</name>\n", track_num++);
+        }
         fprintf(kml->file, "\t\t\t<styleUrl>#multiTrack</styleUrl>\n");
         fprintf(kml->file, "\t\t\t<gx:Track>\n");
         fprintf(kml->file, "\t\t\t\t<altitudeMode>absolute</altitudeMode>\n");
@@ -492,10 +501,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         uint64_t prev_change_value = coordTrak->extended_data[change_track_data];
         for (coord = coordTrak; coord != NULL; coord = coord->next)
         {
-            fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
-                log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
-                coord->hours, coord->mins, coord->secs, coord->frac);
-
             if (nb_extended_data > 0 && change_track_data >= 0)
             {
                 if (coord->extended_data[change_track_data] != prev_change_value)
@@ -503,11 +508,23 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
 
                 prev_change_value = coord->extended_data[change_track_data];
             }
+
+            fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
+                log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
+                coord->hours, coord->mins, coord->secs, coord->frac);
         }
 
         prev_change_value = coordTrak->extended_data[change_track_data];
         for (coord = coordTrak; coord != NULL; coord = coord->next)
         {
+            if (nb_extended_data > 0 && change_track_data >= 0)
+            {
+                if (coord->extended_data[change_track_data] != prev_change_value)
+                    break;
+
+                prev_change_value = coord->extended_data[change_track_data];
+            }
+
             fputs("\t\t\t\t<gx:coord>", kml->file);
             kmlWriteCoordinates(kml, coord->lat, coord->lon, coord->altitude, ' ');
             fputs("</gx:coord>\n", kml->file);
@@ -519,14 +536,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
             if (altitude_place_flags & PLACE_MIN && coord->altitude < min_altitude_value) {
                 min_altitude_value = coord->altitude;
                 min_altitude_coord = coord;
-            }
-
-            if (nb_extended_data > 0 && change_track_data >= 0)
-            {
-                if (coord->extended_data[change_track_data] != prev_change_value)
-                    break;
-
-                prev_change_value = coord->extended_data[change_track_data];
             }
         }
 
@@ -543,6 +552,14 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
                     prev_change_value = coordTrak->extended_data[change_track_data];
                     for (coord = coordTrak; coord != NULL; coord = coord->next)
                     {
+                        if (change_track_data >= 0)
+                        {
+                            if (coord->extended_data[change_track_data] != prev_change_value)
+                                break;
+
+                            prev_change_value = coord->extended_data[change_track_data];
+                        }
+
                         fputs("\t\t\t\t\t\t\t<gx:value>", kml->file);
                         kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e);
                         fputs("</gx:value>\n", kml->file);
@@ -554,14 +571,6 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
                         if (/*extended_data[e].placeFlags & PLACE_MIN && */coord->extended_data[e] < placeValue[e].min) {
                             placeValue[e].min = coord->extended_data[e];
                             placeCoordMin[e] = coord;
-                        }
-
-                        if (change_track_data >= 0)
-                        {
-                            if (coord->extended_data[change_track_data] != prev_change_value)
-                                break;
-
-                            prev_change_value = coord->extended_data[change_track_data];
                         }
                     }
                     fprintf(kml->file, "\t\t\t\t\t\t</gx:SimpleArrayData>\n");
@@ -647,7 +656,11 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
             }
 
             fprintf(kml->file, "\t\t<Placemark>\n");
-            fprintf(kml->file, "\t\t\t<name>trkpt %u</name>\n", trkpt++);
+
+            fputs("\t\t\t<name>", kml->file);
+            kmlWriteExtendedDataValue(kml, log, coord->extended_data[color_extended_data], color_extended_data);
+            fputs("</name>\n", kml->file);
+
             fprintf(kml->file, "\t\t\t<TimeStamp>\n");
             fprintf(kml->file, "\t\t\t\t<when>%04u-%02u-%02uT%02u:%02u:%02u.%06uZ</when>\n",
                 log->sysConfig.logStartTime.tm_year + 1900, log->sysConfig.logStartTime.tm_mon + 1, log->sysConfig.logStartTime.tm_mday,
