@@ -9,6 +9,7 @@
 void fprintfGPSFields(FILE *file, uint64_t fieldvalue, int i, bool unitName);
 bool fprintfMainFieldInUnit(flightLog_t *log, FILE *file, int fieldIndex, int64_t fieldValue, bool unitName);
 void fprintfSlowFrameFields(flightLog_t *log, FILE *file, int64_t fieldValue, int i);
+char *GetFieldUnit(int type, int i);
 
 #define NB_EXTENDED_DATA_MAX 10
 
@@ -259,16 +260,30 @@ void kmlWriteStyles(kmlWriter_t *kml)
         fprintf(kml->file, "\t</Style>\n");
 
         fprintf(kml->file, "\t<Style id=\"multiTrack_h\">\n");
+
         fprintf(kml->file, "\t\t<IconStyle>\n");
         fprintf(kml->file, "\t\t\t<scale>1.2</scale>\n");
         fprintf(kml->file, "\t\t\t<Icon>\n");
         fprintf(kml->file, "\t\t\t\t<href>http://earth.google.com/images/kml-icons/track-directional/track-0.png</href>\n");
         fprintf(kml->file, "\t\t\t</Icon>\n");
+
         fprintf(kml->file, "\t\t</IconStyle>\n");
+
         fprintf(kml->file, "\t\t<LineStyle>\n");
         fprintf(kml->file, "\t\t\t<color>99ffac59</color>\n");
         fprintf(kml->file, "\t\t\t<width>8</width>\n");
         fprintf(kml->file, "\t\t</LineStyle>\n");
+
+        //fprintf(kml->file, "\t\t<BalloonStyle>\n");
+        //fprintf(kml->file, "\t\t\t<text>\n");
+        //fprintf(kml->file, "\t\t\t\t<![CDATA[\n");
+        //for (int e = 0; e < nb_extended_data; e++) {
+        //    fprintf(kml->file, "\t\t\t\t\t%s : $[schema/%s/displayName]</br>\n", extended_data[e].name, extended_data[e].name);
+        //}
+        //fprintf(kml->file, "\t\t\t\t]]>\n");
+        //fprintf(kml->file, "\t\t\t</text>\n");
+        //fprintf(kml->file, "\t\t</BalloonStyle>\n");
+
         fprintf(kml->file, "\t</Style>\n");
 
         fprintf(kml->file, "\t<StyleMap id=\"multiTrack\">\n");
@@ -294,13 +309,18 @@ void kmlWriteStyles(kmlWriter_t *kml)
         //fprintf(kml->file, "\t\t</BalloonStyle>\n");
         //fprintf(kml->file, "\t</Style>\n");
 
-        //fprintf(kml->file, "\t<Schema id=\"schema\">\n");
-        //for (int e = 0; e < nb_extended_data; e++) {
-        //    fprintf(kml->file, "\t\t<gx:SimpleArrayField name=\"%s\">\n", extended_data[e].name);
-        //    fprintf(kml->file, "\t\t\t<displayName>%s</displayName>\n", extended_data[e].name);
-        //    fprintf(kml->file, "\t\t</gx:SimpleArrayField>\n");
-        //}
-        //fprintf(kml->file, "\t</Schema>\n");
+        fprintf(kml->file, "\t<Schema name=\"schema\" id=\"schema\">\n");
+        for (int e = 0; e < nb_extended_data; e++) {
+            char *t;
+            if (extended_data[e].type == 'I' || extended_data[e].type == 'G')
+                t = "float";
+            else
+                t = "string";
+            fprintf(kml->file, "\t\t<gx:SimpleArrayField name=\"%s\" type=\"%s\">\n", extended_data[e].name, t);
+            fprintf(kml->file, "\t\t\t<displayName>%s (%s)</displayName>\n", extended_data[e].name, GetFieldUnit(extended_data[e].type, extended_data[e].index));
+            fprintf(kml->file, "\t\t</gx:SimpleArrayField>\n");
+        }
+        fprintf(kml->file, "\t</Schema>\n");
     }
 }
 
@@ -390,15 +410,15 @@ void kmlWriteCoordinates(kmlWriter_t *kml, int32_t lat, int32_t lon, uint16_t al
     fprintf(kml->file, "%s%d.%07u%c%s%d.%07u%c%d", lonSign, lonDegrees, lonFracDegrees, sep, latSign, latDegrees, latFracDegrees, sep, altitude);
 }
 
-void kmlWriteExtendedDataValue(kmlWriter_t *kml, flightLog_t *log, uint64_t value, int e)
+void kmlWriteExtendedDataValue(kmlWriter_t *kml, flightLog_t *log, uint64_t value, int e, bool unit)
 {
     if (extended_data[e].type == 'G')
     {
-        fprintfGPSFields(kml->file, value, extended_data[e].index, true);
+        fprintfGPSFields(kml->file, value, extended_data[e].index, unit);
     }
     else if (extended_data[e].type == 'I')
     {
-        fprintfMainFieldInUnit(log, kml->file, extended_data[e].index, value, true);
+        fprintfMainFieldInUnit(log, kml->file, extended_data[e].index, value, unit);
     }
     else if (extended_data[e].type == 'S')
     {
@@ -412,7 +432,7 @@ void kmlWritePlacemark(kmlWriter_t *kml, flightLog_t *log, char *name, coordList
     if (e >= 0)
     {
         fprintf(kml->file, "\t\t\t<name>%s %s = ", name, extended_data[e].name);
-        kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e);
+        kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e, true);
     }
     else
     {
@@ -485,7 +505,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
         if (kml->trackModes)
         {
             fputs("\t\t\t<name>", kml->file);
-            kmlWriteExtendedDataValue(kml, log, coordTrak->extended_data[change_track_data], change_track_data);
+            kmlWriteExtendedDataValue(kml, log, coordTrak->extended_data[change_track_data], change_track_data, true);
             fputs("</name>\n", kml->file);
         }
         else
@@ -561,7 +581,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
                         }
 
                         fputs("\t\t\t\t\t\t\t<gx:value>", kml->file);
-                        kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e);
+                        kmlWriteExtendedDataValue(kml, log, coord->extended_data[e], e, false);
                         fputs("</gx:value>\n", kml->file);
 
                         if (/*extended_data[e].placeFlags & PLACE_MAX && */coord->extended_data[e] > placeValue[e].max) {
@@ -658,7 +678,7 @@ void kmlWriterDestroy(kmlWriter_t* kml, flightLog_t *log)
             fprintf(kml->file, "\t\t<Placemark>\n");
 
             fputs("\t\t\t<name>", kml->file);
-            kmlWriteExtendedDataValue(kml, log, coord->extended_data[color_extended_data], color_extended_data);
+            kmlWriteExtendedDataValue(kml, log, coord->extended_data[color_extended_data], color_extended_data, true);
             fputs("</name>\n", kml->file);
 
             fprintf(kml->file, "\t\t\t<TimeStamp>\n");

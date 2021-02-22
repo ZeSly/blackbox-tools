@@ -1085,9 +1085,9 @@ static void flightlogDecodeFlagsToString(uint64_t flags, const char * const *fla
             }
 
             if (printedFlag) {
-                *dest = '|';
-                dest++;
-                destLen--;
+                strcpy(dest, " / ");
+                dest += 3;
+                destLen -= 3;
             } else {
                 printedFlag = true;
             }

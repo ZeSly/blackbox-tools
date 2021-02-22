@@ -1668,3 +1668,13 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+char *GetFieldUnit(int type, int i)
+{
+    if (type == 'I')
+        return UNIT_NAME[mainFieldUnit[i]];
+    if (type == 'G')
+        return UNIT_NAME[gpsGFieldUnit[i]];
+    if (type == 'S')
+        return UNIT_NAME[slowFieldUnit[i]];
+}
