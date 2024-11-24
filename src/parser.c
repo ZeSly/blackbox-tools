@@ -351,37 +351,50 @@ static void identifyFields(flightLog_t * log, uint8_t frameType, flightLogFrameD
     }
 }
 
-static int64_t get_utc_time(char *str) {
-    struct tm tm = {0};
-    double fracsec;
-    char *ep = NULL;
+static void get_utc_tm(char* str, struct tm *tm) {
+  double fracsec;
+  char* ep = NULL;
 
-    tm.tm_year = atoi(str + 2) + 100;
-    tm.tm_mon = atoi(str + 5) - 1;
-    tm.tm_mday = atoi(str + 8);
-    tm.tm_hour = atoi(str + 11);
-    tm.tm_min = atoi(str + 14);
-    fracsec = strtod(str + 17, &ep);
-    tm.tm_sec = (int)fracsec;
+  tm->tm_year = atoi(str + 2) + 100;
+  tm->tm_mon = atoi(str + 5) - 1;
+  tm->tm_mday = atoi(str + 8);
+  tm->tm_hour = atoi(str + 11);
+  tm->tm_min = atoi(str + 14);
+  fracsec = strtod(str + 17, &ep);
+  tm->tm_sec = (int)fracsec;
+}
 
-    char *p = ep;
-    long gmoff = 0;
-    for(; *p; p++) {
-	if(*p == '+' || *p == '-') {
-	    gmoff = strtol(p, &ep, 10);
-	    gmoff *= 60;
-	    if(*ep == ':') {
-		gmoff += strtol(ep+1, NULL, 10);
-	    }
-	    gmoff *= 60;
-	    break;
-	}
+static int64_t get_utc_time(char* str) {
+  struct tm tm = { 0 };
+  double fracsec;
+  char* ep = NULL;
+
+  tm.tm_year = atoi(str + 2) + 100;
+  tm.tm_mon = atoi(str + 5) - 1;
+  tm.tm_mday = atoi(str + 8);
+  tm.tm_hour = atoi(str + 11);
+  tm.tm_min = atoi(str + 14);
+  fracsec = strtod(str + 17, &ep);
+  tm.tm_sec = (int)fracsec;
+
+  char* p = ep;
+  long gmoff = 0;
+  for (; *p; p++) {
+    if (*p == '+' || *p == '-') {
+      gmoff = strtol(p, &ep, 10);
+      gmoff *= 60;
+      if (*ep == ':') {
+        gmoff += strtol(ep + 1, NULL, 10);
+      }
+      gmoff *= 60;
+      break;
     }
-    int64_t utime = mktime(&tm) - gmoff;
-    utime *= US_PER_SEC;
-    int64_t usec = (fracsec-(int)fracsec)*US_PER_SEC;
-    utime += usec;
-    return utime;
+  }
+  int64_t utime = mktime(&tm) - gmoff;
+  utime *= US_PER_SEC;
+  int64_t usec = (fracsec - (int)fracsec) * US_PER_SEC;
+  utime += usec;
+  return utime;
 }
 
 static time_t parse_firmware_date(char *str) {
@@ -611,6 +624,7 @@ static void parseHeaderLine(flightLog_t *log, mmapStream_t *stream)
     }
     else if (strcmp(fieldName, "Log start datetime") == 0) {
 	log->sysConfig.logStartTime = get_utc_time(fieldValue);
+	get_utc_tm(fieldValue, &log->sysConfig.logStartTimeTm);
     }
 }
 

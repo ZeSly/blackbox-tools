@@ -28,6 +28,7 @@
 #include "platform.h"
 #include "tools.h"
 #include "gpxwriter.h"
+#include "kmlwriter.h"
 #include "imu.h"
 #include "battery.h"
 #include "units.h"
@@ -45,6 +46,7 @@ typedef struct decodeOptions_t {
     int simulateCurrentMeter;
     int mergeGPS;
     int datetime;
+    int kml, kmlTrackModes;
     const char *outputPrefix;
 
     bool overrideSimCurrentMeterOffset, overrideSimCurrentMeterScale;
@@ -61,6 +63,7 @@ decodeOptions_t options = {
     .simulateCurrentMeter = false,
     .mergeGPS = 0,
     .datetime = 0,
+    .kml = 0, .kmlTrackModes = 0,
 
     .overrideSimCurrentMeterOffset = false,
     .overrideSimCurrentMeterScale = false,
@@ -91,6 +94,7 @@ static uint32_t lastFrameIteration;
 static FILE *csvFile = 0, *eventFile = 0, *gpsCsvFile = 0;
 static char *eventFilename = 0, *gpsCsvFilename = 0;
 static gpxWriter_t *gpx = 0;
+static kmlWriter_t *kml = 0;
 
 // Computed states:
 static currentMeterState_t currentMeterMeasured;
@@ -173,11 +177,12 @@ static void fprintfMicrosecondsInUnit(flightLog_t *log, FILE *file, int64_t micr
     }
 }
 
-static bool fprintfMainFieldInUnit(flightLog_t *log, FILE *file, int fieldIndex, int64_t fieldValue, Unit unit)
+bool fprintfMainFieldInUnit(flightLog_t *log, FILE *file, int fieldIndex, int64_t fieldValue)
 {
     /* Convert the fieldValue to the given unit based on the original unit of the field (that we decide on by looking
      * for a well-known field that corresponds to the given fieldIndex.)
      */
+    Unit unit = mainFieldUnit[fieldIndex];
     switch (unit) {
         case UNIT_VOLTS:
             if (fieldIndex == log->mainFieldIndexes.vbatLatest) {
@@ -473,6 +478,38 @@ static void updateSimulations(flightLog_t *log, int64_t *frame, int64_t currentT
     }
 }
 
+void fprintfGPSFields(FILE* file, uint64_t fieldvalue, int i, bool unitName)
+{
+  switch (gpsFieldTypes[i]) {
+    case GPS_FIELD_TYPE_COORDINATE_DEGREES_TIMES_10000000:
+      fprintf(file, "%.7f", fieldvalue / 10000000.0);
+      break;
+    case GPS_FIELD_TYPE_DEGREES_TIMES_10:
+      fprintf(file, "%" PRId64 ".%01u", fieldvalue / 10, (unsigned)(llabs(fieldvalue) % 10));
+      break;
+    case GPS_FIELD_TYPE_METERS_PER_SECOND_TIMES_100:
+      if (options.unitGPSSpeed == UNIT_RAW) {
+        fprintf(file, "%" PRId64, fieldvalue);
+      }
+      else if (options.unitGPSSpeed == UNIT_METERS_PER_SECOND) {
+        fprintf(file, "%" PRId64 ".%02u", fieldvalue / 100, (unsigned)(llabs(fieldvalue) % 100));
+      }
+      else {
+        fprintf(file, "%.2f", convertMetersPerSecondToUnit(fieldvalue / 100.0, options.unitGPSSpeed));
+      }
+      if (unitName) {
+          fprintf(file, " %s", UNIT_NAME[options.unitGPSSpeed]);
+      }
+      break;
+    case GPS_FIELD_TYPE_METERS:
+      fprintf(file, "%" PRId64, fieldvalue);
+      break;
+    case GPS_FIELD_TYPE_INTEGER:
+    default:
+      fprintf(file, "%" PRId64, fieldvalue);
+  }
+}
+
 void outputGPSFields(flightLog_t *log, FILE *file, int64_t *frame)
 {
     int i;
@@ -489,29 +526,7 @@ void outputGPSFields(flightLog_t *log, FILE *file, int64_t *frame)
         else
             needComma = true;
 
-        switch (gpsFieldTypes[i]) {
-            case GPS_FIELD_TYPE_COORDINATE_DEGREES_TIMES_10000000:
-                fprintf(file, "%.7f", frame[i] / 10000000.0);
-            break;
-            case GPS_FIELD_TYPE_DEGREES_TIMES_10:
-                fprintf(file, "%" PRId64 ".%01u", frame[i] / 10, (unsigned) (llabs(frame[i]) % 10));
-            break;
-            case GPS_FIELD_TYPE_METERS_PER_SECOND_TIMES_100:
-                if (options.unitGPSSpeed == UNIT_RAW) {
-                    fprintf(file, "%" PRId64, frame[i]);
-                } else if (options.unitGPSSpeed == UNIT_METERS_PER_SECOND) {
-                    fprintf(file, "%" PRId64 ".%02u", frame[i] / 100, (unsigned) (llabs(frame[i]) % 100));
-                } else {
-                    fprintf(file, "%.2f", convertMetersPerSecondToUnit(frame[i] / 100.0, options.unitGPSSpeed));
-                }
-            break;
-            case GPS_FIELD_TYPE_METERS:
-                fprintf(file, "%" PRId64, frame[i]);
-            break;
-            case GPS_FIELD_TYPE_INTEGER:
-            default:
-                fprintf(file, "%" PRId64, frame[i]);
-        }
+        fprintfGPSFields(file, frame[i], i, false);
     }
     {
         double hlat, hlon;
@@ -542,6 +557,7 @@ void outputGPSFrame(flightLog_t *log, int64_t *frame)
 
     if (haveRequiredFields && haveRequiredPrecision) {
 		gpxWriterAddPoint(gpx, log, gpsFrameTime, frame[log->gpsFieldIndexes.GPS_coord[0]], frame[log->gpsFieldIndexes.GPS_coord[1]], frame[log->gpsFieldIndexes.GPS_altitude]);
+        kmlWriterAddPoint(kml, log, gpsFrameTime, frame, bufferedMainFrame, bufferedSlowFrame);
 	}
 
 
@@ -557,13 +573,36 @@ void outputGPSFrame(flightLog_t *log, int64_t *frame)
     }
 }
 
+void fprintfSlowFrameFields(flightLog_t* log, FILE* file, int64_t modeval, int i)
+{
+  char buffer[1024];
+
+  if ((i == log->slowFieldIndexes.flightModeFlags || i == log->slowFieldIndexes.stateFlags) && options.unitFlags == UNIT_FLAGS) {
+    if (i == log->slowFieldIndexes.flightModeFlags) {
+      flightlogFlightModeToString(log, modeval, buffer, sizeof(buffer));
+    }
+    else {
+      flightlogFlightStateToString(log, modeval, buffer, sizeof(buffer));
+    }
+    fprintf(file, "%s", buffer);
+  }
+  else if (i == log->slowFieldIndexes.failsafePhase && options.unitFlags == UNIT_FLAGS) {
+    flightlogFailsafePhaseToString(modeval, buffer, sizeof(buffer));
+
+    fprintf(file, "%s", buffer);
+  }
+  else if (log->frameDefs['S'].fieldSigned[i]) {
+    fprintf(file, "%" PRId64, modeval);
+  }
+  else {
+    //Print raw
+    fprintf(file, "%" PRIu64, modeval);
+  }
+
+}
+
 void outputSlowFrameFields(flightLog_t *log, int64_t *frame)
 {
-    enum {
-        BUFFER_LEN = 1024
-    };
-    char buffer[BUFFER_LEN];
-
     bool needComma = false;
 
     for (int i = 0; i < log->frameDefs['S'].fieldCount; i++) {
@@ -577,27 +616,10 @@ void outputSlowFrameFields(flightLog_t *log, int64_t *frame)
         }
 
 	uint64_t modeval = frame[i];
-	if (i == log->slowFieldIndexes.flightModeFlags && log->slowFieldIndexes.flightModeFlags2 != -1) {
-	    modeval |= (frame[log->slowFieldIndexes.flightModeFlags2] << 32);
-	}
-
-        if ((i == log->slowFieldIndexes.flightModeFlags ||  i == log->slowFieldIndexes.stateFlags) && options.unitFlags == UNIT_FLAGS) {
-            if (i == log->slowFieldIndexes.flightModeFlags) {
-		flightlogFlightModeToString(log, modeval, buffer, BUFFER_LEN);
-            } else {
-                flightlogFlightStateToString(log, modeval, buffer, BUFFER_LEN);
-            }
-            fprintf(csvFile, "%s", buffer);
-        } else if (i == log->slowFieldIndexes.failsafePhase && options.unitFlags == UNIT_FLAGS) {
-            flightlogFailsafePhaseToString(modeval, buffer, BUFFER_LEN);
-
-            fprintf(csvFile, "%s", buffer);
-        } else if (log->frameDefs['S'].fieldSigned[i]) {
-            fprintf(csvFile, "%" PRId64, modeval);
-        } else {
-            //Print raw
-            fprintf(csvFile, "%" PRIu64, modeval);
+        if (i == log->slowFieldIndexes.flightModeFlags && log->slowFieldIndexes.flightModeFlags2 != -1) {
+          modeval |= (frame[log->slowFieldIndexes.flightModeFlags2] << 32);
         }
+        fprintfSlowFrameFields(log, csvFile, modeval, i);
     }
 }
 
@@ -622,11 +644,11 @@ void outputMainFrameFields(flightLog_t *log, int64_t frameTime, int64_t *frame)
             // Use the time the caller provided instead of the time in the frame
             if (frameTime == -1) {
                 fprintf(csvFile, "X");
-            } else if (!fprintfMainFieldInUnit(log, csvFile, i, frameTime, mainFieldUnit[i])) {
+            } else if (!fprintfMainFieldInUnit(log, csvFile, i, frameTime)) {
                 fprintf(stderr, "Bad unit for field %d\n", i);
                 exit(-1);
             }
-        } else if (!fprintfMainFieldInUnit(log, csvFile, i, frame[i], mainFieldUnit[i])) {
+        } else if (!fprintfMainFieldInUnit(log, csvFile, i, frame[i])) {
             fprintf(stderr, "Bad unit for field %d\n", i);
             exit(-1);
         }
@@ -723,6 +745,7 @@ void onFrameReadyMerge(flightLog_t *log, bool frameValid, int64_t *frame, uint8_
 
                 if (haveRequiredFields && haveRequiredPrecision) {
                     gpxWriterAddPoint(gpx, log, gpsFrameTime, frame[log->gpsFieldIndexes.GPS_coord[0]], frame[log->gpsFieldIndexes.GPS_coord[1]], frame[log->gpsFieldIndexes.GPS_altitude]);
+                    kmlWriterAddPoint(kml, log, gpsFrameTime, frame, bufferedMainFrame, bufferedSlowFrame);
                 }
 		lastGPSTime = gpsFrameTime;
             }
@@ -1158,7 +1181,7 @@ int decodeFlightLog(flightLog_t *log, const char *filename, int logIndex)
     if (options.toStdout) {
         csvFile = stdout;
     } else {
-        char *csvFilename = 0, *gpxFilename = 0;
+        char *csvFilename = 0, *gpxFilename = 0, *kmlFilename = 0;
         int filenameLen;
 
         const char *outputPrefix = 0;
@@ -1191,6 +1214,14 @@ int decodeFlightLog(flightLog_t *log, const char *filename, int logIndex)
 
         snprintf(gpxFilename, filenameLen, "%.*s.%02d.gps.gpx", outputPrefixLen, outputPrefix, logIndex + 1);
 
+        if (options.kml) {
+            filenameLen = outputPrefixLen + strlen(".00.kml") + 1;
+            kmlFilename = malloc(filenameLen * sizeof(char));
+
+            snprintf(kmlFilename, filenameLen, "%.*s.%02d.kml", outputPrefixLen, outputPrefix, logIndex + 1);
+        }
+
+
         filenameLen = outputPrefixLen + strlen(".00.gps.csv") + 1;
         gpsCsvFilename = malloc(filenameLen * sizeof(char));
 
@@ -1219,6 +1250,12 @@ int decodeFlightLog(flightLog_t *log, const char *filename, int logIndex)
 
         gpx = gpxWriterCreate(gpxFilename);
         free(gpxFilename);
+
+        if (options.kml) {
+            options.mergeGPS = 1;
+            kml = kmlWriterCreate(kmlFilename, options.kmlTrackModes);
+            free(kmlFilename);
+        }
     }
 
     resetParseState();
@@ -1245,6 +1282,7 @@ int decodeFlightLog(flightLog_t *log, const char *filename, int logIndex)
         fclose(gpsCsvFile);
 
     gpxWriterDestroy(gpx);
+    kmlWriterDestroy(kml, log);
 
     return success ? 0 : -1;
 }
@@ -1287,6 +1325,7 @@ void printUsage(const char *argv0)
         "   --limits                 Print the limits and range of each field\n"
         "   --stdout                 Write log to stdout instead of to a file\n"
         "   --datetime               Add a dateTime column with UTC date time\n"
+        "\n"
         "   --unit-amperage <unit>   Current meter unit (raw|mA|A), default is A (amps)\n"
         "   --unit-flags <unit>      State flags unit (raw|flags), default is flags\n"
         "   --unit-frame-time <unit> Frame timestamp unit (us|s), default is us (microseconds)\n"
@@ -1295,7 +1334,15 @@ void printUsage(const char *argv0)
         "   --unit-acceleration <u>  Acceleration unit (raw|g|m/s2), default is raw\n"
         "   --unit-gps-speed <unit>  GPS speed unit (mps|kph|mph), default is mps (meters per second)\n"
         "   --unit-vbat <unit>       Vbat unit (raw|mV|V), default is V (volts)\n"
+        "\n"
         "   --merge-gps              Merge GPS data into the main CSV log file instead of writing it separately\n"
+        "   --kml                    Export kml file, will activate --merge-gps\n"
+        "   --kml-infos <infos>      Add extended data to kml file, comma separeted. Example : --kml-infos rssi,GPS_speed,distance\n"
+        "   --kml-track-modes        Generate different track for each active RC modes along the flight\n"
+        "   --kml-min <infos>        Generate a placemark for the minimum value of the specified infos, need the corresponding infos in --kml-infos\n"
+        "   --kml-max <infos>        Generate a placemark for the maximum value of the specified infos, need the corresponding infos in --kml-infos\n"
+        "   --kml-color <info>       Add a track with colors corresponding to <info> value.\n"
+        "\n"
         "   --simulate-current-meter Simulate a virtual current meter using throttle data\n"
         "   --sim-current-meter-scale   Override the FC's settings for the current meter simulation\n"
         "   --sim-current-meter-offset  Override the FC's settings for the current meter simulation\n"
@@ -1339,7 +1386,11 @@ void parseCommandlineOptions(int argc, char **argv)
         SETTING_UNIT_ACCELERATION,
         SETTING_UNIT_FRAME_TIME,
         SETTING_UNIT_FLAGS,
-	SETTING_GFRAME,
+        SETTING_GFRAME,
+        SETTING_KML_INFOS,
+        SETTING_KML_MINIMUMS,
+        SETTING_KML_MAXIMUMS,
+        SETTING_KML_COLOR
     };
 
     while (1)
@@ -1353,6 +1404,12 @@ void parseCommandlineOptions(int argc, char **argv)
             {"stdout", no_argument, &options.toStdout, 1},
             { "merge-gps", no_argument, &options.mergeGPS, 1 },
             { "datetime", no_argument, &options.datetime, 1 },
+            { "kml", no_argument, &options.kml, 1 },
+            { "kml-infos", required_argument, 0, SETTING_KML_INFOS},
+            { "kml-track-modes", no_argument, &options.kmlTrackModes, 1},
+            { "kml-min", required_argument, 0, SETTING_KML_MINIMUMS },
+            { "kml-max", required_argument, 0, SETTING_KML_MAXIMUMS },
+            { "kml-color", required_argument, 0, SETTING_KML_COLOR },
             {"simulate-imu", no_argument, &options.simulateIMU, 1},
             {"simulate-current-meter", no_argument, &options.simulateCurrentMeter, 1},
             {"imu-ignore-mag", no_argument, &options.imuIgnoreMag, 1},
@@ -1459,6 +1516,18 @@ void parseCommandlineOptions(int argc, char **argv)
                 options.overrideSimCurrentMeterOffset = true;
                 options.simCurrentMeterOffset = atoi(optarg);
             break;
+            case SETTING_KML_INFOS:
+                kmlSetInfos(optarg);
+            break;
+            case SETTING_KML_MINIMUMS:
+                kmlSetMinimums(optarg);
+            break;
+            case SETTING_KML_MAXIMUMS:
+                kmlSetMaximums(optarg);
+            break;
+            case SETTING_KML_COLOR:
+                kmlSetColor(optarg);
+                break;
             case '\0':
                 //Longopt which has set a flag
             break;
@@ -1541,4 +1610,15 @@ int main(int argc, char **argv)
     }
 
     return 0;
+}
+
+const char* GetFieldUnit(int type, int i)
+{
+  if (type == 'I')
+    return UNIT_NAME[mainFieldUnit[i]];
+  if (type == 'G')
+    return UNIT_NAME[gpsGFieldUnit[i]];
+  if (type == 'S')
+    return UNIT_NAME[slowFieldUnit[i]];
+  return "?";
 }

@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
-#include <sys/time.h>
 
 #include "blackbox_fielddefs.h"
 
@@ -157,6 +156,7 @@ typedef struct flightLogSysConfig_t {
     SomeVersionType rcModes;
 
     int64_t logStartTime;
+    struct tm logStartTimeTm;
     ParserMetaData metafound;
 } flightLogSysConfig_t;
 
