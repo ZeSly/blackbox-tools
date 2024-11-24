@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.16)
-project (blackbox-tools VERSION 0.5.0)
+project (blackbox-tools VERSION 8.0.0)
 
 if (WIN32)
 include (${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)

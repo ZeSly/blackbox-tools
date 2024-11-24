@@ -22,6 +22,8 @@ add_executable (blackbox_render  ${RENDERER_HEADER} ${RENDERER_SRC})
 add_executable (encoder_testbed ${ENCODER_TESTBED_HEADER} ${ENCODER_TESTBED_SRC})
 
 if (WIN32)
+    add_definitions(-DPATH_MAX=MAX_PATH)
+
     target_include_directories(blackbox_decode PRIVATE ../lib/getopt_mb_uni)
 
     target_include_directories(blackbox_render PRIVATE ${CONAN_INCLUDE_DIRS})

@@ -17,7 +17,6 @@
 
 #ifdef WIN32
     #include <io.h>
-    #define PATH_MAX MAX_PATH
 #endif
 
 #include <sys/stat.h>
