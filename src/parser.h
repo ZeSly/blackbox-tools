@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
-#include <sys/time.h>
+#ifndef WIN32
+    #include <sys/time.h>
+#endif
 
 #include "blackbox_fielddefs.h"
 
