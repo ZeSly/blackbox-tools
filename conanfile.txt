@@ -1,0 +1,6 @@
+[requires]
+cairo/1.17.4
+freetype/2.10.4
+
+[generators]
+cmake
